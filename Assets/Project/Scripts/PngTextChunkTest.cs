@@ -59,6 +59,13 @@ public class PngTextChunkTest : MonoBehaviour
     private void Load()
     {
         byte[] data = File.ReadAllBytes(FilePath);
+
+        if (!IsPng(data))
+        {
+            Debug.LogError($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
+            return;
+        }
+        
         Texture2D texture = new Texture2D(0, 0);
         texture.LoadImage(data);
         texture.Apply();
@@ -210,6 +217,12 @@ public class PngTextChunkTest : MonoBehaviour
         Array.Copy(crcData, 0, data, lengthData.Length + chunkTypeData.Length + chunkData.Length, crcData.Length);
 
         return data;
+    }
+
+    private bool IsPng(byte[] data)
+    {
+        string signature = _latin1.GetString(data, 0, 8);
+        return signature == "\x89PNG\r\n\x1a\n";
     }
 
     private bool CrcCheck(uint crc, byte[] chunkTypeData, byte[] chunkData)
