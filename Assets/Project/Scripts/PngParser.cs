@@ -231,7 +231,8 @@ public static class PngParser
                         break;
                 }
 
-                pixels[(metaData.width * h) + x] = pixel;
+                int pixelIdx = (metaData.width * (metaData.height - 1 - h)) + x;
+                pixels[pixelIdx] = pixel;
                 currentBuffer[x] = pixel;
             }
 
