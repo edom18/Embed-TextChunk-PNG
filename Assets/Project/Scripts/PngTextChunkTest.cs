@@ -60,7 +60,7 @@ public class PngTextChunkTest : MonoBehaviour
     {
         byte[] data = File.ReadAllBytes(FilePath);
 
-        if (!IsPng(data))
+        if (!PngParser.IsPng(data))
         {
             Debug.LogError($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
             return;
@@ -78,7 +78,7 @@ public class PngTextChunkTest : MonoBehaviour
         size.x *= ratio / ratio2;
         _loadPreview.rectTransform.sizeDelta = size;
 
-        if (!TryGetChunkData(data, out TextChunkData textChunk))
+        if (!TryGetTextChunkData(data, out TextChunkData textChunk))
         {
             return;
         }
@@ -86,57 +86,33 @@ public class PngTextChunkTest : MonoBehaviour
         _textPreview.text = textChunk.text;
     }
 
-    private bool TryGetChunkData(byte[] data, out TextChunkData textChunkData)
+    private bool TryGetTextChunkData(byte[] data, out TextChunkData textChunkData)
     {
         int pngHeaderSize = 33;
 
-        byte[] lengthData = new byte[4];
-        Array.Copy(data, pngHeaderSize, lengthData, 0, 4);
-        Array.Reverse(lengthData);
-        int length = BitConverter.ToInt32(lengthData, 0);
-
-        byte[] chunkTypeData = new byte[4];
-        Array.Copy(data, pngHeaderSize + 4, chunkTypeData, 0, 4);
-        Array.Reverse(chunkTypeData);
-        string chunkType = Encoding.ASCII.GetString(chunkTypeData);
-
-        byte[] chunkData = new byte[length];
-        Array.Copy(data, pngHeaderSize + 4 + 4, chunkData, 0, chunkData.Length);
-        Array.Reverse(chunkData);
-
+        Chunk chunk = PngParser.ParseChunk(data, pngHeaderSize);
+    
         int separatePosition = -1;
-        for (int i = 0; i < chunkData.Length; ++i)
+        for (int i = 0; i < chunk.chunkData.Length; ++i)
         {
-            if (chunkData[i] == 0)
+            if (chunk.chunkData[i] == 0)
             {
                 separatePosition = i;
                 break;
             }
         }
-
-        string keyword = _latin1.GetString(chunkData, 0, separatePosition);
-        string text = _latin1.GetString(chunkData, separatePosition + 1, chunkData.Length - separatePosition - 1);
-
-        byte[] crcData = new byte[4];
-        Array.Copy(data, pngHeaderSize + 4 + 4 + length, crcData, 0, 4);
-        Array.Reverse(crcData);
-        uint crc = BitConverter.ToUInt32(crcData, 0);
-
-        if (!CrcCheck(crc, chunkTypeData, chunkData))
-        {
-            Debug.LogError($"[{nameof(PngTextChunkTest)}] Failed checking CRC. Something was wrong.");
-            textChunkData = default;
-            return false;
-        }
-
+    
+        string keyword = _latin1.GetString(chunk.chunkData, 0, separatePosition);
+        string text = _latin1.GetString(chunk.chunkData, separatePosition + 1, chunk.chunkData.Length - separatePosition - 1);
+    
         textChunkData = new TextChunkData
         {
-            length = length,
-            chunkType = chunkType,
+            length = chunk.length,
+            chunkType = chunk.chunkType,
             keyword = keyword,
             text = text,
         };
-
+    
         return true;
     }
 
@@ -163,7 +139,7 @@ public class PngTextChunkTest : MonoBehaviour
         Debug.Log($"Save a texture to [{FilePath}]");
 
         byte[] data = tex.EncodeToPNG();
-        byte[] chunkData = CreateTextChunkData(tex);
+        byte[] chunkData = CreateTextChunkData();
 
         int embededDataSize = data.Length + chunkData.Length;
         byte[] embededData = new byte[embededDataSize];
@@ -182,7 +158,7 @@ public class PngTextChunkTest : MonoBehaviour
         File.WriteAllBytes(FilePath, embededData);
     }
 
-    private byte[] CreateTextChunkData(Texture2D tex)
+    private byte[] CreateTextChunkData()
     {
         byte[] chunkTypeData = Encoding.ASCII.GetBytes("tEXt");
         byte[] keywordData = _latin1.GetBytes("Comment");
@@ -219,16 +195,4 @@ public class PngTextChunkTest : MonoBehaviour
         return data;
     }
 
-    private bool IsPng(byte[] data)
-    {
-        string signature = _latin1.GetString(data, 0, 8);
-        return signature == "\x89PNG\r\n\x1a\n";
-    }
-
-    private bool CrcCheck(uint crc, byte[] chunkTypeData, byte[] chunkData)
-    {
-        uint c = Crc32.Hash(0, chunkTypeData);
-        c = Crc32.Hash(c, chunkData);
-        return crc == c;
-    }
 }
