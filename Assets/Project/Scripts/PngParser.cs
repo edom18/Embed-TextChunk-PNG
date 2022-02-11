@@ -13,7 +13,8 @@ public struct Chunk
 
 public static class PngParser
 {
-    private static Encoding _latin1 = Encoding.GetEncoding(28591);
+    private static readonly Encoding _latin1 = Encoding.GetEncoding(28591);
+    private const string _signature = "\x89PNG\r\n\x1a\n";
 
     public static Texture2D Parse(byte[] data)
     {
@@ -76,7 +77,7 @@ public static class PngParser
     public static bool IsPng(byte[] data)
     {
         string signature = _latin1.GetString(data, 0, 8);
-        return signature == "\x89PNG\r\n\x1a\n";
+        return signature == _signature;
     }
 
     private static bool CrcCheck(uint crc, byte[] chunkTypeData, byte[] chunkData)
