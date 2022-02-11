@@ -56,7 +56,6 @@ public static class PngParser
     {
         byte[] chunkTypeData = new byte[4];
         Array.Copy(data, index, chunkTypeData, 0, 4);
-        Array.Reverse(chunkTypeData);
         return (Encoding.ASCII.GetString(chunkTypeData), chunkTypeData);
     }
 
@@ -64,7 +63,6 @@ public static class PngParser
     {
         byte[] chunkData = new byte[size];
         Array.Copy(data, index, chunkData, 0, chunkData.Length);
-        Array.Reverse(chunkData);
         return chunkData;
     }
 

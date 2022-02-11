@@ -179,8 +179,6 @@ public class PngTextChunkTest : MonoBehaviour
         byte[] data = new byte[headerSize + chunkDataSize + footerSize];
 
         Array.Reverse(lengthData);
-        Array.Reverse(chunkTypeData);
-        Array.Reverse(chunkData);
         Array.Reverse(crcData);
 
         Array.Copy(lengthData, 0, data, 0, lengthData.Length);
