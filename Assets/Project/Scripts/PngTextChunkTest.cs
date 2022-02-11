@@ -65,10 +65,12 @@ public class PngTextChunkTest : MonoBehaviour
             Debug.LogError($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
             return;
         }
+
+        Texture2D texture = PngParser.Parse(data);
         
-        Texture2D texture = new Texture2D(0, 0);
-        texture.LoadImage(data);
-        texture.Apply();
+        // Texture2D texture = new Texture2D(0, 0);
+        // texture.LoadImage(data);
+        // texture.Apply();
 
         _loadPreview.texture = texture;
 
