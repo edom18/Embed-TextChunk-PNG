@@ -26,22 +26,45 @@ public static class PngParser
             throw new InvalidDataException($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
         }
 
+        Chunk ihdr = GetHeaderChunk(data);
+
+        Vector2Int imageSize = GetImageSize(ihdr);
+
+        Debug.Log($"[{nameof(PngParser)}] A parsed png size is {imageSize.x.ToString()} x {imageSize.y.ToString()}");
+
         int index = PngSignatureSize;
 
-        Chunk ihdr = ParseChunk(data, index);
+        while (true)
+        {
+            break;
+        }
+
+        return null;
+    }
+
+    public static Chunk GetHeaderChunk(byte[] data)
+    {
+        return ParseChunk(data, PngSignatureSize);
+    }
+
+    public static Vector2Int GetImageSize(Chunk headerChunk)
+    {
+        if (headerChunk.chunkType != "IHDR")
+        {
+            Debug.LogError($"[{nameof(PngParser)}] The chunk is not a header chunk.");
+            return Vector2Int.zero;
+        }
 
         byte[] wdata = new byte[4];
         byte[] hdata = new byte[4];
-        Array.Copy(ihdr.chunkData, 0, wdata, 0, 4);
-        Array.Copy(ihdr.chunkData, 4, hdata, 0, 4);
+        Array.Copy(headerChunk.chunkData, 0, wdata, 0, 4);
+        Array.Copy(headerChunk.chunkData, 4, hdata, 0, 4);
         Array.Reverse(wdata);
         Array.Reverse(hdata);
         uint w = BitConverter.ToUInt32(wdata, 0);
         uint h = BitConverter.ToUInt32(hdata, 0);
 
-        Debug.Log($"[{nameof(PngParser)}] A parsed png size is {w.ToString()} x {h.ToString()}");
-
-        return null;
+        return new Vector2Int((int)w, (int)h);
     }
 
     public static Chunk ParseChunk(byte[] data, int startIndex)
