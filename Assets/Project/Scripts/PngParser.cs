@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using UnityEngine;
 
@@ -48,6 +49,10 @@ public static class PngParser
 
         int index = PngSignatureSize + ihdr.length + metaDataSize;
 
+        List<byte[]> pngData = new List<byte[]>();
+
+        int totalSize = 0;
+
         while (true)
         {
             if (data.Length < index) break;
@@ -56,9 +61,40 @@ public static class PngParser
 
             Debug.Log($"[{nameof(PngParser)}] Chunk type : {chunk.chunkType}, length: {chunk.length.ToString()}");
 
+            if (chunk.chunkType == "IDAT")
+            {
+                pngData.Add(chunk.chunkData);
+                totalSize += chunk.length;
+            }
+
             if (chunk.chunkType == "IEND") break;
 
             index += chunk.length + metaDataSize;
+        }
+
+        Debug.Log($"[{nameof(PngParser)}] Total size : {totalSize.ToString()}");
+
+        // Skipping first 2 byte of the array because it's a magic byte.
+        // NOTE: https://stackoverflow.com/questions/20850703/cant-inflate-with-c-sharp-using-deflatestream
+        int skipCount = 2;
+        
+        byte[] pngBytes = new byte[totalSize - skipCount];
+        Array.Copy(pngData[0], skipCount, pngBytes, 0, pngData[0].Length - skipCount);
+        
+        int pos = pngData[0].Length - skipCount;
+        for (int i = 1; i < pngData.Count; ++i)
+        {
+            byte[] d = pngData[i];
+            Array.Copy(d, 0, pngBytes, pos, d.Length);
+            pos += d.Length;
+        }
+
+        using (MemoryStream memoryStream = new MemoryStream(pngBytes))
+        using (MemoryStream writeMemoryStream = new MemoryStream())
+        using (DeflateStream deflateStream = new DeflateStream(memoryStream, CompressionMode.Decompress))
+        {
+            deflateStream.CopyTo(writeMemoryStream);
+            byte[] decompressed = writeMemoryStream.ToArray();
         }
 
         return null;
