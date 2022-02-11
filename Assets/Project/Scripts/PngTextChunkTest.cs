@@ -88,9 +88,7 @@ public class PngTextChunkTest : MonoBehaviour
 
     private bool TryGetTextChunkData(byte[] data, out TextChunkData textChunkData)
     {
-        int pngHeaderSize = 33;
-
-        Chunk chunk = PngParser.ParseChunk(data, pngHeaderSize);
+        Chunk chunk = PngParser.ParseChunk(data, PngParser.PngHeaderSize);
     
         int separatePosition = -1;
         for (int i = 0; i < chunk.chunkData.Length; ++i)
@@ -144,16 +142,14 @@ public class PngTextChunkTest : MonoBehaviour
         int embededDataSize = data.Length + chunkData.Length;
         byte[] embededData = new byte[embededDataSize];
 
-        int pngHeaderLength = 33;
-
         // Copy the PNG header to the result.
-        Array.Copy(data, 0, embededData, 0, pngHeaderLength);
+        Array.Copy(data, 0, embededData, 0, PngParser.PngHeaderSize);
 
         // Add a tEXT chunk.
-        Array.Copy(chunkData, 0, embededData, pngHeaderLength, chunkData.Length);
+        Array.Copy(chunkData, 0, embededData, PngParser.PngHeaderSize, chunkData.Length);
 
         // Join the data chunks to the result.
-        Array.Copy(data, pngHeaderLength, embededData, pngHeaderLength + chunkData.Length, data.Length - pngHeaderLength);
+        Array.Copy(data, PngParser.PngHeaderSize, embededData, PngParser.PngHeaderSize + chunkData.Length, data.Length - PngParser.PngHeaderSize);
 
         File.WriteAllBytes(FilePath, embededData);
     }

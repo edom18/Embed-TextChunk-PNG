@@ -13,6 +13,8 @@ public struct Chunk
 
 public static class PngParser
 {
+    public static readonly int PngHeaderSize = 33;
+    
     private static readonly Encoding _latin1 = Encoding.GetEncoding(28591);
     private const string _signature = "\x89PNG\r\n\x1a\n";
 
