@@ -77,10 +77,10 @@ public static class PngParser
         // Skipping first 2 byte of the array because it's a magic byte.
         // NOTE: https://stackoverflow.com/questions/20850703/cant-inflate-with-c-sharp-using-deflatestream
         int skipCount = 2;
-        
+
         byte[] pngBytes = new byte[totalSize - skipCount];
         Array.Copy(pngData[0], skipCount, pngBytes, 0, pngData[0].Length - skipCount);
-        
+
         int pos = pngData[0].Length - skipCount;
         for (int i = 1; i < pngData.Count; ++i)
         {
@@ -89,12 +89,20 @@ public static class PngParser
             pos += d.Length;
         }
 
-        using (MemoryStream memoryStream = new MemoryStream(pngBytes))
-        using (MemoryStream writeMemoryStream = new MemoryStream())
-        using (DeflateStream deflateStream = new DeflateStream(memoryStream, CompressionMode.Decompress))
+        using MemoryStream memoryStream = new MemoryStream(pngBytes);
+        using MemoryStream writeMemoryStream = new MemoryStream();
+        using DeflateStream deflateStream = new DeflateStream(memoryStream, CompressionMode.Decompress);
+        
+        deflateStream.CopyTo(writeMemoryStream);
+        byte[] decompressed = writeMemoryStream.ToArray();
+
+        byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
+        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
+
+        for (int h = 0; h < metaData.height; ++h)
         {
-            deflateStream.CopyTo(writeMemoryStream);
-            byte[] decompressed = writeMemoryStream.ToArray();
+            int idx = rowSize * h;
+            Debug.Log($"[{idx}] {decompressed[idx].ToString()}");
         }
 
         return null;
@@ -189,6 +197,30 @@ public static class PngParser
     {
         string signature = _latin1.GetString(data, 0, 8);
         return signature == _signature;
+    }
+
+    private static byte GetBitsPerPixel(byte colorType, byte depth)
+    {
+        switch (colorType)
+        {
+            case 0:
+                return depth;
+
+            case 2:
+                return (byte)(depth * 3);
+
+            case 3:
+                return depth;
+
+            case 4:
+                return (byte)(depth * 2);
+
+            case 6:
+                return (byte)(depth * 4);
+
+            default:
+                return 0;
+        }
     }
 
     private static bool CrcCheck(uint crc, byte[] chunkTypeData, byte[] chunkData)
