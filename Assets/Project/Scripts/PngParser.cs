@@ -13,13 +13,34 @@ public struct Chunk
 
 public static class PngParser
 {
+    public static readonly int PngSignatureSize = 8;
     public static readonly int PngHeaderSize = 33;
-    
+
     private static readonly Encoding _latin1 = Encoding.GetEncoding(28591);
     private const string _signature = "\x89PNG\r\n\x1a\n";
 
     public static Texture2D Parse(byte[] data)
     {
+        if (!IsPng(data))
+        {
+            throw new InvalidDataException($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
+        }
+
+        int index = PngSignatureSize;
+
+        Chunk ihdr = ParseChunk(data, index);
+
+        byte[] wdata = new byte[4];
+        byte[] hdata = new byte[4];
+        Array.Copy(ihdr.chunkData, 0, wdata, 0, 4);
+        Array.Copy(ihdr.chunkData, 4, hdata, 0, 4);
+        Array.Reverse(wdata);
+        Array.Reverse(hdata);
+        uint w = BitConverter.ToUInt32(wdata, 0);
+        uint h = BitConverter.ToUInt32(hdata, 0);
+
+        Debug.Log($"[{nameof(PngParser)}] A parsed png size is {w.ToString()} x {h.ToString()}");
+
         return null;
     }
 
