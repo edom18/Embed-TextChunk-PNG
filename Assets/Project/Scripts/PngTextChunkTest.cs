@@ -71,14 +71,18 @@ public class PngTextChunkTest : MonoBehaviour
         size.x *= ratio / ratio2;
         _loadPreview.rectTransform.sizeDelta = size;
 
-        TextChunkData textChunk = GetChunkData(data);
+        if (!TryGetChunkData(data, out TextChunkData textChunk))
+        {
+            return;
+        }
+        
         _textPreview.text = textChunk.text;
     }
 
-    private TextChunkData GetChunkData(byte[] data)
+    private bool TryGetChunkData(byte[] data, out TextChunkData textChunkData)
     {
         int pngHeaderSize = 33;
-        
+
         byte[] lengthData = new byte[4];
         Array.Copy(data, pngHeaderSize, lengthData, 0, 4);
         Array.Reverse(lengthData);
@@ -88,7 +92,7 @@ public class PngTextChunkTest : MonoBehaviour
         Array.Copy(data, pngHeaderSize + 4, chunkTypeData, 0, 4);
         Array.Reverse(chunkTypeData);
         string chunkType = Encoding.ASCII.GetString(chunkTypeData);
-        
+
         byte[] chunkData = new byte[length];
         Array.Copy(data, pngHeaderSize + 4 + 4, chunkData, 0, chunkData.Length);
         Array.Reverse(chunkData);
@@ -105,14 +109,28 @@ public class PngTextChunkTest : MonoBehaviour
 
         string keyword = _latin1.GetString(chunkData, 0, separatePosition);
         string text = _latin1.GetString(chunkData, separatePosition + 1, chunkData.Length - separatePosition - 1);
-        
-        return new TextChunkData
+
+        byte[] crcData = new byte[4];
+        Array.Copy(data, pngHeaderSize + 4 + 4 + length, crcData, 0, 4);
+        Array.Reverse(crcData);
+        uint crc = BitConverter.ToUInt32(crcData, 0);
+
+        if (!CrcCheck(crc, chunkTypeData, chunkData))
+        {
+            Debug.LogError($"[{nameof(PngTextChunkTest)}] Failed checking CRC. Something was wrong.");
+            textChunkData = default;
+            return false;
+        }
+
+        textChunkData = new TextChunkData
         {
             length = length,
             chunkType = chunkType,
             keyword = keyword,
             text = text,
         };
+
+        return true;
     }
 
     private void StartDownload()
@@ -192,5 +210,12 @@ public class PngTextChunkTest : MonoBehaviour
         Array.Copy(crcData, 0, data, lengthData.Length + chunkTypeData.Length + chunkData.Length, crcData.Length);
 
         return data;
+    }
+
+    private bool CrcCheck(uint crc, byte[] chunkTypeData, byte[] chunkData)
+    {
+        uint c = Crc32.Hash(0, chunkTypeData);
+        c = Crc32.Hash(c, chunkData);
+        return crc == c;
     }
 }
