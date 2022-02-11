@@ -32,11 +32,21 @@ public static class PngParser
 
         Debug.Log($"[{nameof(PngParser)}] A parsed png size is {imageSize.x.ToString()} x {imageSize.y.ToString()}");
 
-        int index = PngSignatureSize;
+        const int metaDataSize = 4 + 4 + 4;
+        
+        int index = PngSignatureSize + ihdr.length + metaDataSize;
 
         while (true)
         {
-            break;
+            if (data.Length < index) break;
+            
+            Chunk chunk = ParseChunk(data, index);
+
+            Debug.Log($"[{nameof(PngParser)}] Chunk type : {chunk.chunkType}, length: {chunk.length.ToString()}");
+
+            if (chunk.chunkType == "IEND") break;
+
+            index += chunk.length + metaDataSize;
         }
 
         return null;
