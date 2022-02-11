@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Linq;
 using System.Text;
+using Unity.Collections;
 using UnityEngine;
 
 public struct Chunk
@@ -22,6 +24,79 @@ public struct PngMetaData
     public byte compressionMethod;
     public byte filterMethod;
     public byte interlace;
+}
+
+public struct Pixel32
+{
+    public byte r;
+    public byte g;
+    public byte b;
+    public byte a;
+
+    public static Pixel32 Zero => new Pixel32(0, 0, 0, 0);
+
+    public Pixel32(byte r, byte g, byte b, byte a)
+    {
+        this.r = r;
+        this.g = g;
+        this.b = b;
+        this.a = a;
+    }
+
+    public static Pixel32 CalculateFloor(Pixel32 left, Pixel32 right)
+    {
+        byte r = (byte)((left.r + right.r) % 256);
+        byte g = (byte)((left.g + right.g) % 256);
+        byte b = (byte)((left.b + right.b) % 256);
+        byte a = (byte)((left.a + right.a) % 256);
+
+        return new Pixel32(r, g, b, a);
+    }
+
+    public static Pixel32 CalculateAverage(Pixel32 a, Pixel32 b, Pixel32 c)
+    {
+        int ar = Average(b.r, c.r);
+        int ag = Average(b.g, c.g);
+        int ab = Average(b.b, c.b);
+        int aa = Average(b.a, c.a);
+
+        return CalculateFloor(a, new Pixel32((byte)ar, (byte)ag, (byte)ab, (byte)aa));
+    }
+
+    private static int Average(int left, int up)
+    {
+        return (left + up) / 2;
+    }
+
+    public static Pixel32 CalculatePaeth(Pixel32 a, Pixel32 b, Pixel32 c, Pixel32 current)
+    {
+        int cr = PaethPredictor(a.r, b.r, c.r);
+        int cg = PaethPredictor(a.g, b.g, c.g);
+        int cb = PaethPredictor(a.b, b.b, c.b);
+        int ca = PaethPredictor(a.a, b.a, c.a);
+
+        return CalculateFloor(current, new Pixel32((byte)cr, (byte)cg, (byte)cb, (byte)ca));
+    }
+
+    private static int PaethPredictor(int a, int b, int c)
+    {
+        int p = a + b - c;
+        int pa = Mathf.Abs(p - a);
+        int pb = Mathf.Abs(p - b);
+        int pc = Mathf.Abs(p - c);
+
+        if (pa <= pb && pa <= pc)
+        {
+            return a;
+        }
+
+        if (pb <= pc)
+        {
+            return b;
+        }
+
+        return c;
+    }
 }
 
 public static class PngParser
@@ -92,20 +167,94 @@ public static class PngParser
         using MemoryStream memoryStream = new MemoryStream(pngBytes);
         using MemoryStream writeMemoryStream = new MemoryStream();
         using DeflateStream deflateStream = new DeflateStream(memoryStream, CompressionMode.Decompress);
-        
+
         deflateStream.CopyTo(writeMemoryStream);
         byte[] decompressed = writeMemoryStream.ToArray();
 
+        return ParseAsRGBA(decompressed, metaData);
+    }
+
+    private static Texture2D ParseAsRGBA(byte[] data, PngMetaData metaData)
+    {
         byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
         int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
+        int stride = bitsPerPixel / 8;
+
+        Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
+        Pixel32[] lastLineA = new Pixel32[metaData.width];
+        Pixel32[] lastLineB = new Pixel32[metaData.width];
+        Pixel32[] currentBuffer = lastLineA;
+        Pixel32[] lastBuffer = lastLineB;
 
         for (int h = 0; h < metaData.height; ++h)
         {
             int idx = rowSize * h;
-            Debug.Log($"[{idx}] {decompressed[idx].ToString()}");
+            byte filterType = data[idx];
+
+            int startIndex = idx + 1;
+
+            Pixel32 left = new Pixel32();
+            Pixel32 current = new Pixel32();
+            Pixel32 up = new Pixel32();
+
+            for (int x = 0; x < metaData.width; ++x)
+            {
+                Pixel32 pixel = default;
+                current = GetPixel32(data, startIndex + (x * stride));
+
+                switch (filterType)
+                {
+                    case 0:
+                        break;
+                    
+                    case 1:
+                        pixel = Pixel32.CalculateFloor(current, left);
+                        left = pixel;
+                        break;
+                    
+                    case 2:
+                        left = (h == 0) ? Pixel32.Zero : lastBuffer[x];
+                        pixel = Pixel32.CalculateFloor(current, left);
+                        break;
+                    
+                    case 3:
+                        up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
+                        pixel = Pixel32.CalculateAverage(current, left, up);
+                        left = pixel;
+                        break;
+                    
+                    case 4:
+                        up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
+                        Pixel32 leftUp = (h == 0 || x == 0) ? Pixel32.Zero : lastBuffer[x - 1];
+                        pixel = Pixel32.CalculatePaeth(left, up, leftUp, current);
+                        left = pixel;
+                        break;
+                }
+
+                pixels[(metaData.width * h) + x] = pixel;
+                currentBuffer[x] = pixel;
+            }
+
+            // Swap buffers.
+            (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
 
-        return null;
+        Texture2D texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
+        NativeArray<Color32> buffer = texture.GetRawTextureData<Color32>();
+        Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
+        buffer.CopyFrom(pixelData);
+        texture.Apply();
+
+        return texture;
+    }
+
+    private static Pixel32 GetPixel32(byte[] data, int startIndex)
+    {
+        byte r = data[startIndex + 0];
+        byte g = data[startIndex + 1];
+        byte b = data[startIndex + 2];
+        byte a = data[startIndex + 3];
+        return new Pixel32(r, g, b, a);
     }
 
     public static Chunk GetHeaderChunk(byte[] data)
