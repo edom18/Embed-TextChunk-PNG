@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEngine;
@@ -9,6 +10,17 @@ public struct Chunk
     public string chunkType;
     public byte[] chunkData;
     public uint crc;
+}
+
+public struct PngMetaData
+{
+    public int width;
+    public int height;
+    public byte bitDepth;
+    public byte colorType;
+    public byte compressionMethod;
+    public byte filterMethod;
+    public byte interlace;
 }
 
 public static class PngParser
@@ -28,18 +40,18 @@ public static class PngParser
 
         Chunk ihdr = GetHeaderChunk(data);
 
-        Vector2Int imageSize = GetImageSize(ihdr);
+        PngMetaData metaData = GetMetaData(ihdr);
 
-        Debug.Log($"[{nameof(PngParser)}] A parsed png size is {imageSize.x.ToString()} x {imageSize.y.ToString()}");
+        Debug.Log($"[{nameof(PngParser)}] A parsed png size is {metaData.width.ToString()} x {metaData.height.ToString()}");
 
         const int metaDataSize = 4 + 4 + 4;
-        
+
         int index = PngSignatureSize + ihdr.length + metaDataSize;
 
         while (true)
         {
             if (data.Length < index) break;
-            
+
             Chunk chunk = ParseChunk(data, index);
 
             Debug.Log($"[{nameof(PngParser)}] Chunk type : {chunk.chunkType}, length: {chunk.length.ToString()}");
@@ -57,12 +69,12 @@ public static class PngParser
         return ParseChunk(data, PngSignatureSize);
     }
 
-    public static Vector2Int GetImageSize(Chunk headerChunk)
+    public static PngMetaData GetMetaData(Chunk headerChunk)
     {
         if (headerChunk.chunkType != "IHDR")
         {
             Debug.LogError($"[{nameof(PngParser)}] The chunk is not a header chunk.");
-            return Vector2Int.zero;
+            return default;
         }
 
         byte[] wdata = new byte[4];
@@ -74,7 +86,16 @@ public static class PngParser
         uint w = BitConverter.ToUInt32(wdata, 0);
         uint h = BitConverter.ToUInt32(hdata, 0);
 
-        return new Vector2Int((int)w, (int)h);
+        return new PngMetaData
+        {
+            width = (int)w,
+            height = (int)h,
+            bitDepth = headerChunk.chunkData[8],
+            colorType = headerChunk.chunkData[9],
+            compressionMethod = headerChunk.chunkData[10],
+            filterMethod = headerChunk.chunkData[11],
+            interlace = headerChunk.chunkData[12],
+        };
     }
 
     public static Chunk ParseChunk(byte[] data, int startIndex)
