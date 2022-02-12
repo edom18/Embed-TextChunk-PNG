@@ -99,51 +99,6 @@ public struct Pixel32
     }
 }
 
-public struct PngPixelView
-{
-    private byte[] _data;
-    private int _width;
-    private int _stride;
-    
-    public PngPixelView(byte[] data, int width, int bitsPerPixel)
-    {
-        _data = data;
-        
-        _stride = bitsPerPixel / 8;
-        _width = width * _stride;
-    }
-
-    private int GetStartIndex(int x, int y)
-    {
-        return ((_width + 1) * y) + 1 + (x * _stride);
-    }
-
-    public void ReadPixel(byte[] outArray, int x, int y)
-    {
-        int start = GetStartIndex(x, y);
-        int length = _stride;
-        ReadOnlySpan<byte> view = new ReadOnlySpan<byte>(_data, start, length);
-
-        for (int i = 0; i < view.Length; ++i)
-        {
-            outArray[i] = view[i];
-        }
-    }
-
-    public void ReadLine(byte[] outArray, int heightLine)
-    {
-        int start = GetStartIndex(0, heightLine);
-        int length = _width;
-        
-        ReadOnlySpan<byte> view = new ReadOnlySpan<byte>(_data, start, length);
-
-        for (int i = 0; i < view.Length; ++i)
-        {
-            outArray[i] = view[i];
-        }
-    }
-}
-
 public static class PngParser
 {
     public static readonly int PngSignatureSize = 8;
