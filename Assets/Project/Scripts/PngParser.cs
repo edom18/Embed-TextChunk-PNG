@@ -251,11 +251,21 @@ public static class PngParser
 
     private static Pixel32 GetPixel32(byte[] data, int startIndex)
     {
-        byte r = data[startIndex + 0];
-        byte g = data[startIndex + 1];
-        byte b = data[startIndex + 2];
-        byte a = data[startIndex + 3];
-        return new Pixel32(r, g, b, a);
+        Pixel32 result = default;
+        unsafe
+        {
+            if (data.Length < startIndex + 4)
+            {
+                throw new IndexOutOfRangeException($"[{nameof(PngParser)}] Out of range of the data.");
+            }
+        
+            fixed (byte* pin = data)
+            {
+                byte* p = pin + startIndex;
+                *(uint*)&result = *(uint*)p;
+            }
+        }
+        return result;
     }
 
     public static Chunk GetHeaderChunk(byte[] data)
