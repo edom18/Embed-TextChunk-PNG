@@ -198,7 +198,6 @@ public static class PngParser
         Pixel32[] currentBuffer = lastLineA;
         Pixel32[] lastBuffer = lastLineB;
 
-        Profiler.BeginSample("Restore color");
         for (int h = 0; h < metaData.height; ++h)
         {
             int idx = rowSize * h;
@@ -252,8 +251,6 @@ public static class PngParser
             // Swap buffers.
             (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
-
-        Profiler.EndSample();
 
         Texture2D texture = null;
         unityContext.Post(s =>
