@@ -266,8 +266,6 @@ public static class PngParser
             try
             {
                 IntPtr pointer = handle.AddrOfPinnedObject();
-                byte[] destination = new byte[pixels.Length * 4];
-                Marshal.Copy(pointer, destination, 0, destination.Length);
                 texture.LoadRawTextureData(pointer, metaData.width * metaData.height * 4);
             }
             finally
