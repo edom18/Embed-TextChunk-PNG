@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Profiling;
 
@@ -262,7 +260,7 @@ public static class PngParser
         {
             Profiler.BeginSample("Create a texture");
             texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
-            NativeArray<byte> buffer = texture.GetRawTextureData<byte>();
+
             GCHandle handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
 
             try
@@ -270,7 +268,7 @@ public static class PngParser
                 IntPtr pointer = handle.AddrOfPinnedObject();
                 byte[] destination = new byte[pixels.Length * 4];
                 Marshal.Copy(pointer, destination, 0, destination.Length);
-                buffer.CopyFrom(destination);
+                texture.LoadRawTextureData(pointer, metaData.width * metaData.height * 4);
             }
             finally
             {
