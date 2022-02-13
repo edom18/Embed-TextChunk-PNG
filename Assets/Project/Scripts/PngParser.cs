@@ -4,8 +4,11 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using Unity.Collections;
 using UnityEngine;
+using UnityEngine.Profiling;
 
 public struct Chunk
 {
@@ -107,13 +110,19 @@ public static class PngParser
     private static readonly Encoding _latin1 = Encoding.GetEncoding(28591);
     private const string _signature = "\x89PNG\r\n\x1a\n";
 
-    public static Texture2D Parse(byte[] data)
+    public async static Task<Texture2D> Parse(byte[] data, CancellationToken token)
     {
         if (!IsPng(data))
         {
             throw new InvalidDataException($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
         }
 
+        SynchronizationContext context = SynchronizationContext.Current;
+        return await Task.Run(() => ParseAsRGBA(data, context), token);
+    }
+
+    private static (PngMetaData metaData, byte[]) Decompress(byte[] data)
+    {
         Chunk ihdr = GetHeaderChunk(data);
 
         PngMetaData metaData = GetMetaData(ihdr);
@@ -134,7 +143,7 @@ public static class PngParser
 
             Chunk chunk = ParseChunk(data, index);
 
-            Debug.Log($"[{nameof(PngParser)}] Chunk type : {chunk.chunkType}, length: {chunk.length.ToString()}");
+            // Debug.Log($"[{nameof(PngParser)}] Chunk type : {chunk.chunkType}, length: {chunk.length.ToString()}");
 
             if (chunk.chunkType == "IDAT")
             {
@@ -171,21 +180,25 @@ public static class PngParser
         deflateStream.CopyTo(writeMemoryStream);
         byte[] decompressed = writeMemoryStream.ToArray();
 
-        return ParseAsRGBA(decompressed, metaData);
+        return (metaData, decompressed);
     }
 
-    private static Texture2D ParseAsRGBA(byte[] data, PngMetaData metaData)
+    private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
     {
+        (PngMetaData metaData, byte[] data) = Decompress(rowData);
+        
+        Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
+
         byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
         int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
         int stride = bitsPerPixel / 8;
 
-        Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
         Pixel32[] lastLineA = new Pixel32[metaData.width];
         Pixel32[] lastLineB = new Pixel32[metaData.width];
         Pixel32[] currentBuffer = lastLineA;
         Pixel32[] lastBuffer = lastLineB;
 
+        Profiler.BeginSample("Restore color");
         for (int h = 0; h < metaData.height; ++h)
         {
             int idx = rowSize * h;
@@ -206,23 +219,23 @@ public static class PngParser
                 {
                     case 0:
                         break;
-                    
+
                     case 1:
                         pixel = Pixel32.CalculateFloor(current, left);
                         left = pixel;
                         break;
-                    
+
                     case 2:
                         left = (h == 0) ? Pixel32.Zero : lastBuffer[x];
                         pixel = Pixel32.CalculateFloor(current, left);
                         break;
-                    
+
                     case 3:
                         up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
                         pixel = Pixel32.CalculateAverage(current, left, up);
                         left = pixel;
                         break;
-                    
+
                     case 4:
                         up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
                         Pixel32 leftUp = (h == 0 || x == 0) ? Pixel32.Zero : lastBuffer[x - 1];
@@ -240,11 +253,24 @@ public static class PngParser
             (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
 
-        Texture2D texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
-        NativeArray<Color32> buffer = texture.GetRawTextureData<Color32>();
-        Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
-        buffer.CopyFrom(pixelData);
-        texture.Apply();
+        Profiler.EndSample();
+
+        Texture2D texture = null;
+        unityContext.Post(s =>
+        {
+            Profiler.BeginSample("Create a texture");
+            texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
+            NativeArray<Color32> buffer = texture.GetRawTextureData<Color32>();
+            Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
+            buffer.CopyFrom(pixelData);
+            texture.Apply();
+            Profiler.EndSample();
+        }, null);
+
+        while (texture == null)
+        {
+            Thread.Sleep(16);
+        }
 
         return texture;
     }
@@ -258,13 +284,14 @@ public static class PngParser
             {
                 throw new IndexOutOfRangeException($"[{nameof(PngParser)}] Out of range of the data.");
             }
-        
+
             fixed (byte* pin = data)
             {
                 byte* p = pin + startIndex;
                 *(uint*)&result = *(uint*)p;
             }
         }
+
         return result;
     }
 

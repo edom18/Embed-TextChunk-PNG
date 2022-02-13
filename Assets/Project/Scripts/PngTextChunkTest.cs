@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
@@ -25,6 +26,7 @@ public class PngTextChunkTest : MonoBehaviour
 
     private string FilePath => Path.Combine(Application.persistentDataPath, _filename);
     private Encoding _latin1 = Encoding.GetEncoding(28591);
+    private CancellationTokenSource _tokenSource;
 
     #region ### ------------------------------ MonoBehaviour ------------------------------ ###
 
@@ -39,6 +41,11 @@ public class PngTextChunkTest : MonoBehaviour
         {
             Load();
         }
+    }
+
+    private void OnDestroy()
+    {
+        _tokenSource?.Cancel();
     }
 
     private void OnGUI()
@@ -56,7 +63,7 @@ public class PngTextChunkTest : MonoBehaviour
 
     #endregion ### ------------------------------ MonoBehaviour ------------------------------ ###
 
-    private void Load()
+    private async void Load()
     {
         byte[] data = File.ReadAllBytes(FilePath);
 
@@ -66,12 +73,9 @@ public class PngTextChunkTest : MonoBehaviour
             return;
         }
 
-        Texture2D texture = PngParser.Parse(data);
+        _tokenSource = new CancellationTokenSource();
+        Texture2D texture = await PngParser.Parse(data, _tokenSource.Token);
         
-        // Texture2D texture = new Texture2D(0, 0);
-        // texture.LoadImage(data);
-        // texture.Apply();
-
         _loadPreview.texture = texture;
 
         float ratio = texture.width / (float)texture.height;
@@ -84,14 +88,14 @@ public class PngTextChunkTest : MonoBehaviour
         {
             return;
         }
-        
+
         _textPreview.text = textChunk.text;
     }
 
     private bool TryGetTextChunkData(byte[] data, out TextChunkData textChunkData)
     {
         Chunk chunk = PngParser.ParseChunk(data, PngParser.PngHeaderSize);
-    
+
         int separatePosition = -1;
         for (int i = 0; i < chunk.chunkData.Length; ++i)
         {
@@ -101,10 +105,10 @@ public class PngTextChunkTest : MonoBehaviour
                 break;
             }
         }
-    
+
         string keyword = _latin1.GetString(chunk.chunkData, 0, separatePosition);
         string text = _latin1.GetString(chunk.chunkData, separatePosition + 1, chunk.chunkData.Length - separatePosition - 1);
-    
+
         textChunkData = new TextChunkData
         {
             length = chunk.length,
@@ -112,7 +116,7 @@ public class PngTextChunkTest : MonoBehaviour
             keyword = keyword,
             text = text,
         };
-    
+
         return true;
     }
 
@@ -190,5 +194,4 @@ public class PngTextChunkTest : MonoBehaviour
 
         return data;
     }
-
 }
