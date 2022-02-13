@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +30,7 @@ public struct PngMetaData
     public byte interlace;
 }
 
+[StructLayout(LayoutKind.Sequential)]
 public struct Pixel32
 {
     public byte r;
@@ -186,7 +188,7 @@ public static class PngParser
     private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
     {
         (PngMetaData metaData, byte[] data) = Decompress(rowData);
-        
+
         Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
 
         byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
@@ -256,14 +258,28 @@ public static class PngParser
         Profiler.EndSample();
 
         Texture2D texture = null;
-        Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
-        
         unityContext.Post(s =>
         {
             Profiler.BeginSample("Create a texture");
             texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
-            NativeArray<Color32> buffer = texture.GetRawTextureData<Color32>();
-            buffer.CopyFrom(pixelData);
+            NativeArray<byte> buffer = texture.GetRawTextureData<byte>();
+            GCHandle handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+
+            try
+            {
+                IntPtr pointer = handle.AddrOfPinnedObject();
+                byte[] destination = new byte[pixels.Length * 4];
+                Marshal.Copy(pointer, destination, 0, destination.Length);
+                buffer.CopyFrom(destination);
+            }
+            finally
+            {
+                if (handle.IsAllocated)
+                {
+                    handle.Free();
+                }
+            }
+
             texture.Apply();
             Profiler.EndSample();
         }, null);
