@@ -256,12 +256,13 @@ public static class PngParser
         Profiler.EndSample();
 
         Texture2D texture = null;
+        Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
+        
         unityContext.Post(s =>
         {
             Profiler.BeginSample("Create a texture");
             texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
             NativeArray<Color32> buffer = texture.GetRawTextureData<Color32>();
-            Color32[] pixelData = pixels.Select(p => new Color32(p.r, p.g, p.b, p.a)).ToArray();
             buffer.CopyFrom(pixelData);
             texture.Apply();
             Profiler.EndSample();
