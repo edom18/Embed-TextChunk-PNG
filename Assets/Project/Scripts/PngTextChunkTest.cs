@@ -145,19 +145,19 @@ public class PngTextChunkTest : MonoBehaviour
         byte[] data = tex.EncodeToPNG();
         byte[] chunkData = CreateTextChunkData();
 
-        int embededDataSize = data.Length + chunkData.Length;
-        byte[] embededData = new byte[embededDataSize];
+        int embeddedDataSize = data.Length + chunkData.Length;
+        byte[] embeddedData = new byte[embeddedDataSize];
 
         // Copy the PNG header to the result.
-        Array.Copy(data, 0, embededData, 0, PngParser.PngHeaderSize);
+        Array.Copy(data, 0, embeddedData, 0, PngParser.PngHeaderSize);
 
         // Add a tEXT chunk.
-        Array.Copy(chunkData, 0, embededData, PngParser.PngHeaderSize, chunkData.Length);
+        Array.Copy(chunkData, 0, embeddedData, PngParser.PngHeaderSize, chunkData.Length);
 
         // Join the data chunks to the result.
-        Array.Copy(data, PngParser.PngHeaderSize, embededData, PngParser.PngHeaderSize + chunkData.Length, data.Length - PngParser.PngHeaderSize);
+        Array.Copy(data, PngParser.PngHeaderSize, embeddedData, PngParser.PngHeaderSize + chunkData.Length, data.Length - PngParser.PngHeaderSize);
 
-        File.WriteAllBytes(FilePath, embededData);
+        File.WriteAllBytes(FilePath, embeddedData);
     }
 
     private byte[] CreateTextChunkData()
