@@ -110,7 +110,7 @@ public static class PngParser
     private static readonly Encoding _latin1 = Encoding.GetEncoding(28591);
     private const string _signature = "\x89PNG\r\n\x1a\n";
 
-    public async static Task<Texture2D> Parse(byte[] data, CancellationToken token)
+    public static async Task<Texture2D> Parse(byte[] data, CancellationToken token)
     {
         if (!IsPng(data))
         {
