@@ -3,6 +3,7 @@ using System.Collections;
 using System.IO;
 using System.Text;
 using System.Threading;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
@@ -29,6 +30,11 @@ public class PngTextChunkTest : MonoBehaviour
     private CancellationTokenSource _tokenSource;
 
     #region ### ------------------------------ MonoBehaviour ------------------------------ ###
+
+    private void Start()
+    {
+        NativeLeakDetection.Mode = NativeLeakDetectionMode.EnabledWithStackTrace;
+    }
 
     private void Update()
     {
