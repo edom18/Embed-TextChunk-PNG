@@ -100,6 +100,31 @@ public struct Pixel32
 
         return c;
     }
+
+    public static Pixel32 operator +(Pixel32 left, Pixel32 right)
+    {
+        byte r = (byte)(left.r + right.r);
+        byte g = (byte)(left.g + right.g);
+        byte b = (byte)(left.b + right.b);
+        byte a = (byte)(left.a + right.a);
+
+        return new Pixel32(r, g, b, a);
+    }
+    
+    public static Pixel32 operator -(Pixel32 left, Pixel32 right)
+    {
+        byte r = (byte)(left.r - right.r);
+        byte g = (byte)(left.g - right.g);
+        byte b = (byte)(left.b - right.b);
+        byte a = (byte)(left.a - right.a);
+
+        return new Pixel32(r, g, b, a);
+    }
+
+    public override string ToString()
+    {
+        return $"({r.ToString()},{g.ToString()},{b.ToString()},{a.ToString()})";
+    }
 }
 
 public static class PngParser
@@ -121,7 +146,7 @@ public static class PngParser
         return await Task.Run(() => ParseAsRGBA(data, context), token);
     }
 
-    private static (PngMetaData metaData, byte[]) Decompress(byte[] data)
+    public static (PngMetaData metaData, byte[]) Decompress(byte[] data)
     {
         Chunk ihdr = GetHeaderChunk(data);
 
@@ -285,7 +310,7 @@ public static class PngParser
         return texture;
     }
 
-    private static Pixel32 GetPixel32(byte[] data, int startIndex)
+    public static Pixel32 GetPixel32(byte[] data, int startIndex)
     {
         Pixel32 result = default;
         unsafe
@@ -396,7 +421,7 @@ public static class PngParser
         return signature == _signature;
     }
 
-    private static byte GetBitsPerPixel(byte colorType, byte depth)
+    public static byte GetBitsPerPixel(byte colorType, byte depth)
     {
         switch (colorType)
         {
