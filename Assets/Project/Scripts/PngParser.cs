@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Profiling;
+using Debug = UnityEngine.Debug;
 
 public struct Chunk
 {
@@ -110,7 +112,7 @@ public struct Pixel32
 
         return new Pixel32(r, g, b, a);
     }
-    
+
     public static Pixel32 operator -(Pixel32 left, Pixel32 right)
     {
         byte r = (byte)(left.r - right.r);
@@ -208,9 +210,87 @@ public static class PngParser
         return (metaData, decompressed);
     }
 
+
+    private static void Expand1(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
+        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
+    {
+        for (int x = 0; x < metaData.width; ++x)
+        {
+            pixel = default;
+            current = GetPixel32(data, startIndex + (x * stride));
+
+            pixel = Pixel32.CalculateFloor(current, left);
+            left = pixel;
+
+            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
+            pixels[pixelIdx] = pixel;
+            currentBuffer[x] = pixel;
+        }
+    }
+
+    private static void Expand2(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
+        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
+    {
+        for (int x = 0; x < metaData.width; ++x)
+        {
+            pixel = default;
+            current = GetPixel32(data, startIndex + (x * stride));
+
+            left = (y == 0) ? Pixel32.Zero : lastBuffer[x];
+            pixel = Pixel32.CalculateFloor(current, left);
+
+            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
+            pixels[pixelIdx] = pixel;
+            currentBuffer[x] = pixel;
+        }
+    }
+
+    private static void Expand3(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
+        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
+    {
+        for (int x = 0; x < metaData.width; ++x)
+        {
+            pixel = default;
+            current = GetPixel32(data, startIndex + (x * stride));
+
+            up = (y == 0) ? Pixel32.Zero : lastBuffer[x];
+            pixel = Pixel32.CalculateAverage(current, left, up);
+            left = pixel;
+
+            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
+            pixels[pixelIdx] = pixel;
+            currentBuffer[x] = pixel;
+        }
+    }
+
+    private static void Expand4(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
+        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
+    {
+        for (int x = 0; x < metaData.width; ++x)
+        {
+            pixel = default;
+            current = GetPixel32(data, startIndex + (x * stride));
+
+            up = (y == 0) ? Pixel32.Zero : lastBuffer[x];
+            Pixel32 leftUp = (y == 0 || x == 0) ? Pixel32.Zero : lastBuffer[x - 1];
+            pixel = Pixel32.CalculatePaeth(left, up, leftUp, current);
+            left = pixel;
+
+            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
+            pixels[pixelIdx] = pixel;
+            currentBuffer[x] = pixel;
+        }
+    }
+
     private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
     {
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
         (PngMetaData metaData, byte[] data) = Decompress(rowData);
+        sw.Stop();
+
+        Debug.Log($"Decomposing time : {sw.ElapsedMilliseconds.ToString()}ms");
+
 
         Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
 
@@ -223,6 +303,116 @@ public static class PngParser
         Pixel32[] currentBuffer = lastLineA;
         Pixel32[] lastBuffer = lastLineB;
 
+        sw.Restart();
+        for (int h = 0; h < metaData.height; ++h)
+        {
+            int idx = rowSize * h;
+            byte filterType = data[idx];
+
+            int startIndex = idx + 1;
+
+            Pixel32 left = new Pixel32();
+            Pixel32 current = new Pixel32();
+            Pixel32 up = new Pixel32();
+            Pixel32 pixel = default;
+
+            switch (filterType)
+            {
+                case 0:
+                    break;
+
+                case 1:
+                    Expand1(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
+                    break;
+
+                case 2:
+                    Expand2(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
+                    break;
+
+                case 3:
+                    Expand3(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
+                    break;
+
+                case 4:
+                    Expand4(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
+                    break;
+            }
+
+            // for (int x = 0; x < metaData.width; ++x)
+            // {
+            //     Pixel32 pixel = default;
+            //     current = GetPixel32(data, startIndex + (x * stride));
+            //
+            //      switch()
+            //
+            //     int pixelIdx = (metaData.width * (metaData.height - 1 - h)) + x;
+            //     pixels[pixelIdx] = pixel;
+            //     currentBuffer[x] = pixel;
+            // }
+
+            // Swap buffers.
+            (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
+        }
+
+        sw.Stop();
+
+        Debug.Log($"Expanding time : {sw.ElapsedMilliseconds.ToString()}ms");
+
+        Texture2D texture = null;
+        unityContext.Post(s =>
+        {
+            Profiler.BeginSample("Create a texture");
+            texture = new Texture2D(metaData.width, metaData.height, TextureFormat.RGBA32, false);
+
+            GCHandle handle = GCHandle.Alloc(pixels, GCHandleType.Pinned);
+
+            try
+            {
+                IntPtr pointer = handle.AddrOfPinnedObject();
+                texture.LoadRawTextureData(pointer, metaData.width * metaData.height * 4);
+            }
+            finally
+            {
+                if (handle.IsAllocated)
+                {
+                    handle.Free();
+                }
+            }
+
+            texture.Apply();
+            Profiler.EndSample();
+        }, null);
+
+        while (texture == null)
+        {
+            Thread.Sleep(16);
+        }
+
+        return texture;
+    }
+
+    private static unsafe Texture2D UnsafeParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
+    {
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
+        (PngMetaData metaData, byte[] data) = Decompress(rowData);
+        sw.Stop();
+
+        Debug.Log($"Decomposing time : {sw.ElapsedMilliseconds.ToString()}ms");
+
+
+        Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
+
+        byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
+        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
+        int stride = bitsPerPixel / 8;
+
+        Pixel32[] lastLineA = new Pixel32[metaData.width];
+        Pixel32[] lastLineB = new Pixel32[metaData.width];
+        Pixel32[] currentBuffer = lastLineA;
+        Pixel32[] lastBuffer = lastLineB;
+
+        sw.Restart();
         for (int h = 0; h < metaData.height; ++h)
         {
             int idx = rowSize * h;
@@ -276,6 +466,10 @@ public static class PngParser
             // Swap buffers.
             (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
+
+        sw.Stop();
+
+        Debug.Log($"Unsafe expanding time : {sw.ElapsedMilliseconds.ToString()}ms");
 
         Texture2D texture = null;
         unityContext.Post(s =>
