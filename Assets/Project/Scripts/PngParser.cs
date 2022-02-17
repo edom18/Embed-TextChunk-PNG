@@ -210,71 +210,6 @@ public static class PngParser
         return (metaData, decompressed);
     }
 
-
-    private static void Expand1(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
-        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
-    {
-        for (int x = 0; x < metaData.width; ++x)
-        {
-            current = GetPixel32(data, startIndex + (x * stride));
-
-            left = Pixel32.CalculateFloor(current, left);
-
-            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
-            pixels[pixelIdx] = left;
-            currentBuffer[x] = left;
-        }
-    }
-
-    private static void Expand2(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
-        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
-    {
-        for (int x = 0; x < metaData.width; ++x)
-        {
-            current = GetPixel32(data, startIndex + (x * stride));
-
-            left = (y == 0) ? Pixel32.Zero : lastBuffer[x];
-            left = Pixel32.CalculateFloor(current, left);
-
-            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
-            pixels[pixelIdx] = left;
-            currentBuffer[x] = left;
-        }
-    }
-
-    private static void Expand3(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
-        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
-    {
-        for (int x = 0; x < metaData.width; ++x)
-        {
-            current = GetPixel32(data, startIndex + (x * stride));
-
-            up = (y == 0) ? Pixel32.Zero : lastBuffer[x];
-            left = Pixel32.CalculateAverage(current, left, up);
-
-            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
-            pixels[pixelIdx] = left;
-            currentBuffer[x] = left;
-        }
-    }
-
-    private static void Expand4(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, Pixel32[] currentBuffer, Pixel32[] lastBuffer, ref Pixel32 current, ref Pixel32 pixel,
-        ref Pixel32 left, ref Pixel32 up, PngMetaData metaData)
-    {
-        for (int x = 0; x < metaData.width; ++x)
-        {
-            current = GetPixel32(data, startIndex + (x * stride));
-
-            up = (y == 0) ? Pixel32.Zero : lastBuffer[x];
-            Pixel32 leftUp = (y == 0 || x == 0) ? Pixel32.Zero : lastBuffer[x - 1];
-            left = Pixel32.CalculatePaeth(left, up, leftUp, current);
-
-            int pixelIdx = (metaData.width * (metaData.height - 1 - y)) + x;
-            pixels[pixelIdx] = left;
-            currentBuffer[x] = left;
-        }
-    }
-
     private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
     {
         Stopwatch sw = new Stopwatch();
@@ -290,11 +225,6 @@ public static class PngParser
         int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
         int stride = bitsPerPixel / 8;
 
-        // Pixel32[] lastLineA = new Pixel32[metaData.width];
-        // Pixel32[] lastLineB = new Pixel32[metaData.width];
-        // Pixel32[] currentBuffer = lastLineA;
-        // Pixel32[] lastBuffer = lastLineB;
-
         sw.Restart();
         for (int h = 0; h < metaData.height; ++h)
         {
@@ -303,39 +233,27 @@ public static class PngParser
 
             int startIndex = idx + 1;
 
-            // Pixel32 left = new Pixel32();
-            // Pixel32 current = new Pixel32();
-            // Pixel32 up = new Pixel32();
-            // Pixel32 pixel = default;
-
             switch (filterType)
             {
                 case 0:
                     break;
 
                 case 1:
-                    // Expand1(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
                     UnsafeExpand1(data, startIndex, stride, h, pixels, metaData);
                     break;
 
                 case 2:
-                    // Expand2(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
                     UnsafeExpand2(data, startIndex, stride, h, pixels, metaData);
                     break;
 
                 case 3:
-                    // Expand3(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
                     UnsafeExpand3(data, startIndex, stride, h, pixels, metaData);
                     break;
 
                 case 4:
-                    // Expand4(data, startIndex, stride, h, pixels, currentBuffer, lastBuffer, ref current, ref pixel, ref left, ref up, metaData);
                     UnsafeExpand4(data, startIndex, stride, h, pixels, metaData);
                     break;
             }
-
-            // Swap buffers.
-            // (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
 
         sw.Stop();
