@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Profiling;
+using Debug = UnityEngine.Debug;
 
 public struct Chunk
 {
@@ -110,7 +112,7 @@ public struct Pixel32
 
         return new Pixel32(r, g, b, a);
     }
-    
+
     public static Pixel32 operator -(Pixel32 left, Pixel32 right)
     {
         byte r = (byte)(left.r - right.r);
@@ -210,7 +212,12 @@ public static class PngParser
 
     private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
     {
+        Stopwatch sw = new Stopwatch();
+        sw.Start();
         (PngMetaData metaData, byte[] data) = Decompress(rowData);
+        sw.Stop();
+
+        Debug.Log($"Decomposing time : {sw.ElapsedMilliseconds.ToString()}ms");
 
         Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
 
@@ -218,11 +225,7 @@ public static class PngParser
         int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
         int stride = bitsPerPixel / 8;
 
-        Pixel32[] lastLineA = new Pixel32[metaData.width];
-        Pixel32[] lastLineB = new Pixel32[metaData.width];
-        Pixel32[] currentBuffer = lastLineA;
-        Pixel32[] lastBuffer = lastLineB;
-
+        sw.Restart();
         for (int h = 0; h < metaData.height; ++h)
         {
             int idx = rowSize * h;
@@ -230,52 +233,32 @@ public static class PngParser
 
             int startIndex = idx + 1;
 
-            Pixel32 left = new Pixel32();
-            Pixel32 current = new Pixel32();
-            Pixel32 up = new Pixel32();
-
-            for (int x = 0; x < metaData.width; ++x)
+            switch (filterType)
             {
-                Pixel32 pixel = default;
-                current = GetPixel32(data, startIndex + (x * stride));
+                case 0:
+                    break;
 
-                switch (filterType)
-                {
-                    case 0:
-                        break;
+                case 1:
+                    UnsafeExpand1(data, startIndex, stride, h, pixels, metaData);
+                    break;
 
-                    case 1:
-                        pixel = Pixel32.CalculateFloor(current, left);
-                        left = pixel;
-                        break;
+                case 2:
+                    UnsafeExpand2(data, startIndex, stride, h, pixels, metaData);
+                    break;
 
-                    case 2:
-                        left = (h == 0) ? Pixel32.Zero : lastBuffer[x];
-                        pixel = Pixel32.CalculateFloor(current, left);
-                        break;
+                case 3:
+                    UnsafeExpand3(data, startIndex, stride, h, pixels, metaData);
+                    break;
 
-                    case 3:
-                        up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
-                        pixel = Pixel32.CalculateAverage(current, left, up);
-                        left = pixel;
-                        break;
-
-                    case 4:
-                        up = (h == 0) ? Pixel32.Zero : lastBuffer[x];
-                        Pixel32 leftUp = (h == 0 || x == 0) ? Pixel32.Zero : lastBuffer[x - 1];
-                        pixel = Pixel32.CalculatePaeth(left, up, leftUp, current);
-                        left = pixel;
-                        break;
-                }
-
-                int pixelIdx = (metaData.width * (metaData.height - 1 - h)) + x;
-                pixels[pixelIdx] = pixel;
-                currentBuffer[x] = pixel;
+                case 4:
+                    UnsafeExpand4(data, startIndex, stride, h, pixels, metaData);
+                    break;
             }
-
-            // Swap buffers.
-            (currentBuffer, lastBuffer) = (lastBuffer, currentBuffer);
         }
+
+        sw.Stop();
+
+        Debug.Log($"Expanding time : {sw.ElapsedMilliseconds.ToString()}ms");
 
         Texture2D texture = null;
         unityContext.Post(s =>
@@ -308,6 +291,171 @@ public static class PngParser
         }
 
         return texture;
+    }
+
+    private static unsafe void UnsafeExpand1(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, PngMetaData metaData)
+    {
+        if (data.Length < startIndex + (metaData.width * stride))
+        {
+            throw new IndexOutOfRangeException("Index out of range.");
+        }
+
+        fixed (Pixel32* pixpin = pixels)
+        fixed (byte* pin = data)
+        {
+            byte* p = pin + startIndex;
+            Pixel32* pixp = pixpin + (metaData.width * (metaData.height - 1 - y));
+
+            Pixel32 left = Pixel32.Zero;
+            Pixel32 current = default;
+
+            for (int x = 0; x < metaData.width; ++x)
+            {
+                *(uint*)&current = *(uint*)p;
+
+                left = Pixel32.CalculateFloor(current, left);
+
+                p += stride;
+
+                *pixp = left;
+                ++pixp;
+            }
+        }
+    }
+
+    private static unsafe void UnsafeExpand2(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, PngMetaData metaData)
+    {
+        if (data.Length < startIndex + (metaData.width * stride))
+        {
+            throw new IndexOutOfRangeException("Index out of range.");
+        }
+
+        fixed (Pixel32* pixpin = pixels)
+        fixed (byte* pin = data)
+        {
+            byte* p = pin + startIndex;
+            Pixel32* pixp = pixpin + (metaData.width * (metaData.height - 1 - y));
+
+            Pixel32 up = Pixel32.Zero;
+            Pixel32 current = default;
+
+            int upStride = metaData.width;
+
+            for (int x = 0; x < metaData.width; ++x)
+            {
+                *(uint*)&current = *(uint*)p;
+
+                if (y == 0)
+                {
+                    up = Pixel32.Zero;
+                }
+                else
+                {
+                    *(uint*)&up = *(uint*)(pixp + upStride);
+                }
+
+                up = Pixel32.CalculateFloor(current, up);
+
+                p += stride;
+
+                *pixp = up;
+                ++pixp;
+            }
+        }
+    }
+
+    private static unsafe void UnsafeExpand3(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, PngMetaData metaData)
+    {
+        if (data.Length < startIndex + (metaData.width * stride))
+        {
+            throw new IndexOutOfRangeException("Index out of range.");
+        }
+
+        fixed (Pixel32* pixpin = pixels)
+        fixed (byte* pin = data)
+        {
+            byte* p = pin + startIndex;
+            Pixel32* pixp = pixpin + (metaData.width * (metaData.height - 1 - y));
+
+            Pixel32 up = Pixel32.Zero;
+            Pixel32 left = Pixel32.Zero;
+            Pixel32 current = default;
+
+            int upStride = metaData.width;
+
+            for (int x = 0; x < metaData.width; ++x)
+            {
+                *(uint*)&current = *(uint*)p;
+
+                if (y == 0)
+                {
+                    up = Pixel32.Zero;
+                }
+                else
+                {
+                    *(uint*)&up = *(uint*)(pixp + upStride);
+                }
+
+                left = Pixel32.CalculateAverage(current, left, up);
+
+                p += stride;
+
+                *pixp = left;
+                ++pixp;
+            }
+        }
+    }
+
+    private static unsafe void UnsafeExpand4(byte[] data, int startIndex, int stride, int y, Pixel32[] pixels, PngMetaData metaData)
+    {
+        if (data.Length < startIndex + (metaData.width * stride))
+        {
+            throw new IndexOutOfRangeException("Index out of range.");
+        }
+
+        fixed (Pixel32* pixpin = pixels)
+        fixed (byte* pin = data)
+        {
+            byte* p = pin + startIndex;
+            Pixel32* pixp = pixpin + (metaData.width * (metaData.height - 1 - y));
+
+            Pixel32 up = Pixel32.Zero;
+            Pixel32 left = Pixel32.Zero;
+            Pixel32 leftUp = Pixel32.Zero;
+            Pixel32 current = default;
+
+            int upStride = metaData.width;
+
+            for (int x = 0; x < metaData.width; ++x)
+            {
+                *(uint*)&current = *(uint*)p;
+
+                if (y == 0)
+                {
+                    up = Pixel32.Zero;
+                }
+                else
+                {
+                    *(uint*)&up = *(uint*)(pixp + upStride);
+                }
+
+                if (y == 0 || x == 0)
+                {
+                    leftUp = Pixel32.Zero;
+                }
+                else
+                {
+                    *(uint*)&leftUp = *(uint*)(pixp + upStride - 1);
+                }
+
+                left = Pixel32.CalculatePaeth(left, up, leftUp, current);
+
+                p += stride;
+
+                *pixp = left;
+                ++pixp;
+            }
+        }
     }
 
     public static Pixel32 GetPixel32(byte[] data, int startIndex)
