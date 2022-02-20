@@ -210,11 +210,11 @@ public static class PngParser
         return (metaData, decompressed);
     }
 
-    private static Texture2D ParseAsRGBA(byte[] rowData, SynchronizationContext unityContext)
+    private static Texture2D ParseAsRGBA(byte[] rawData, SynchronizationContext unityContext)
     {
         Stopwatch sw = new Stopwatch();
         sw.Start();
-        (PngMetaData metaData, byte[] data) = Decompress(rowData);
+        (PngMetaData metaData, byte[] data) = Decompress(rawData);
         sw.Stop();
 
         Debug.Log($"Decomposing time : {sw.ElapsedMilliseconds.ToString()}ms");
