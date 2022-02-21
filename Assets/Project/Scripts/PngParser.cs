@@ -287,7 +287,7 @@ public static class PngParser
 
         while (texture == null)
         {
-            Thread.Sleep(16);
+            Thread.Sleep(1);
         }
 
         return texture;
