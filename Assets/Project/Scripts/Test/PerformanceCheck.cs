@@ -72,22 +72,16 @@ public class PerformanceCheck : MonoBehaviour
 
         // Profiler.BeginSample("CheckAsNormal");
 
-        byte bitsPerPixel = PngParser.GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
-        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
-        int stride = bitsPerPixel / 8;
-
         Pixel32 zero = Pixel32.Zero;
 
         for (int y = 0; y < metaData.height; ++y)
         {
-            int idx = rowSize * y;
-            byte filterType = data[idx];
-
+            int idx = metaData.rowSize * y;
             int startIndex = idx + 1;
 
             for (int x = 0; x < metaData.width; ++x)
             {
-                Pixel32 pixel = PngParser.GetPixel32(data, startIndex + (x * stride));
+                Pixel32 pixel = PngParser.GetPixel32(data, startIndex + (x * metaData.stride));
                 Pixel32 test = zero + pixel;
             }
         }
@@ -101,10 +95,6 @@ public class PerformanceCheck : MonoBehaviour
 
         // Profiler.BeginSample("CheckWithPointer");
 
-        byte bitsPerPixel = PngParser.GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
-        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
-        int stride = bitsPerPixel / 8;
-
         Pixel32 zero = Pixel32.Zero;
 
         unsafe
@@ -113,14 +103,12 @@ public class PerformanceCheck : MonoBehaviour
             {
                 for (int y = 0; y < metaData.height; ++y)
                 {
-                    int idx = rowSize * y;
-                    byte filterType = data[idx];
-
+                    int idx = metaData.rowSize * y;
                     int startIndex = idx + 1;
 
                     for (int x = 0; x < metaData.width; ++x)
                     {
-                        byte* p = pin + startIndex + (x * stride);
+                        byte* p = pin + startIndex + (x * metaData.stride);
                         Pixel32* pixel = (Pixel32*)p;
                         Pixel32 test = zero + *pixel;
                     }
