@@ -32,6 +32,12 @@ public struct PngMetaData
     public int stride;
 }
 
+public struct LineInfo
+{
+    public int[] filterType1;
+    public int[] otherType;
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct Pixel32
 {
@@ -148,6 +154,38 @@ public static class PngParser
 
         SynchronizationContext context = SynchronizationContext.Current;
         return await Task.Run(() => ParseAsRGBA(data, context), token);
+    }
+
+    public static LineInfo ExtractLines(byte[] data, PngMetaData metaData)
+    {
+        List<int> type1 = new List<int>();
+        List<int> other = new List<int>();
+
+        for (int h = 0; h < metaData.height; ++h)
+        {
+            int idx = metaData.rowSize * h;
+            byte filterType = data[idx];
+
+            if (filterType == 0)
+            {
+                Debug.Log(">>>>>>>>>>>>>>>>");
+            }
+
+            if (filterType == 1)
+            {
+                type1.Add(h);
+            }
+            else
+            {
+                other.Add(h);
+            }
+        }
+
+        return new LineInfo
+        {
+            filterType1 = type1.ToArray(),
+            otherType = other.ToArray(),
+        };
     }
 
     public static (PngMetaData metaData, byte[]) Decompress(byte[] data)

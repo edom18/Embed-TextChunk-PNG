@@ -5,51 +5,51 @@ using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 
 [BurstCompile]
-public class ExpandJob : IJobParallelFor
+public struct ExpandJob : IJob
 {
-    [ReadOnly] public NativeArray<byte> data;
+    [NativeDisableParallelForRestriction] public NativeArray<byte> data;
     [ReadOnly] public NativeArray<int> indices;
-    public NativeArray<Pixel32> pixels;
+    [NativeDisableParallelForRestriction] public NativeArray<Pixel32> pixels;
 
     public PngMetaData metaData;
-    public byte bitsPerPixel;
-    public int rowSize;
-    public int stride;
 
-    public void Execute(int index)
+    public void Execute()
     {
-        int y = indices[index];
-
-        int idx = rowSize * y;
-        int startIndex = idx + 1;
-
-        if (data.Length < startIndex + (metaData.width * stride))
+        for (int i = 0; i < indices.Length; ++i)
         {
-            throw new IndexOutOfRangeException("Index out of range.");
-        }
+            int y = indices[i];
 
-        byte filterType = data[idx];
+            int idx = metaData.rowSize * y;
+            int startIndex = idx + 1;
 
-        switch (filterType)
-        {
-            case 0:
-                break;
+            if (data.Length < startIndex + (metaData.width * metaData.stride))
+            {
+                throw new IndexOutOfRangeException("Index out of range.");
+            }
 
-            case 1:
-                // UnsafeExpand1(data, startIndex, stride, h, pixels, metaData);
-                break;
+            byte filterType = data[idx];
 
-            case 2:
-                ExpandType2(startIndex, y);
-                break;
+            switch (filterType)
+            {
+                case 0:
+                    break;
 
-            case 3:
-                ExpandType3(startIndex, y);
-                break;
+                // case 1:
+                //     ExpandType1(data, startIndex, stride, h, pixels, metaData);
+                //     break;
 
-            case 4:
-                ExpandType4(startIndex, y);
-                break;
+                case 2:
+                    ExpandType2(startIndex, y);
+                    break;
+
+                case 3:
+                    ExpandType3(startIndex, y);
+                    break;
+
+                case 4:
+                    ExpandType4(startIndex, y);
+                    break;
+            }
         }
     }
 
@@ -81,7 +81,7 @@ public class ExpandJob : IJobParallelFor
 
             up = Pixel32.CalculateFloor(current, up);
 
-            ptr += stride;
+            ptr += metaData.stride;
 
             *pixelPtr = up;
             ++pixelPtr;
@@ -117,7 +117,7 @@ public class ExpandJob : IJobParallelFor
 
             left = Pixel32.CalculateAverage(current, left, up);
 
-            ptr += stride;
+            ptr += metaData.stride;
 
             *pixelPtr = left;
             ++pixelPtr;
@@ -163,7 +163,7 @@ public class ExpandJob : IJobParallelFor
 
             left = Pixel32.CalculatePaeth(left, up, leftUp, current);
 
-            ptr += stride;
+            ptr += metaData.stride;
 
             *pixelPtr = left;
             ++pixelPtr;

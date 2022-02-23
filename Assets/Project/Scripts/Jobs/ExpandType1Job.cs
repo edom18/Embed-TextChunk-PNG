@@ -3,27 +3,26 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
+using Unity.Mathematics;
+using static Unity.Mathematics.math;
 
 [BurstCompile]
-public class ExpandType1Job : IJobParallelFor
+public struct ExpandType1Job : IJobParallelFor
 {
-    [ReadOnly] public NativeArray<byte> data;
+    [NativeDisableParallelForRestriction]public NativeArray<byte> data;
     [ReadOnly] public NativeArray<int> indices;
-    public NativeArray<Pixel32> pixels;
+    [NativeDisableParallelForRestriction] public NativeArray<Pixel32> pixels;
 
     public PngMetaData metaData;
-    public byte bitsPerPixel;
-    public int rowSize;
-    public int stride;
 
     public void Execute(int index)
     {
         int y = indices[index];
 
-        int idx = rowSize * y;
+        int idx = metaData.rowSize * y;
         int startIndex = idx + 1;
 
-        if (data.Length < startIndex + (metaData.width * stride))
+        if (data.Length < startIndex + (metaData.width * metaData.stride))
         {
             throw new IndexOutOfRangeException("Index out of range.");
         }
@@ -48,7 +47,7 @@ public class ExpandType1Job : IJobParallelFor
 
             left = Pixel32.CalculateFloor(current, left);
 
-            ptr += stride;
+            ptr += metaData.stride;
 
             *pixelPtr = left;
             ++pixelPtr;
