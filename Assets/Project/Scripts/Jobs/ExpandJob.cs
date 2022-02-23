@@ -7,9 +7,10 @@ using Unity.Jobs;
 [BurstCompile]
 public struct ExpandJob : IJob
 {
-    [NativeDisableParallelForRestriction] public NativeArray<byte> data;
     [ReadOnly] public NativeArray<int> indices;
-    [NativeDisableParallelForRestriction] public NativeArray<Pixel32> pixels;
+    
+    public NativeArray<byte> data;
+    public NativeArray<Pixel32> pixels;
 
     public PngMetaData metaData;
 

@@ -3,15 +3,14 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
-using Unity.Mathematics;
-using static Unity.Mathematics.math;
 
 [BurstCompile]
 public struct ExpandType1Job : IJobParallelFor
 {
-    [NativeDisableParallelForRestriction]public NativeArray<byte> data;
     [ReadOnly] public NativeArray<int> indices;
-    [NativeDisableParallelForRestriction] public NativeArray<Pixel32> pixels;
+    
+    public NativeArray<byte> data;
+    public NativeArray<Pixel32> pixels;
 
     public PngMetaData metaData;
 
