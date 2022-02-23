@@ -28,6 +28,8 @@ public struct PngMetaData
     public byte compressionMethod;
     public byte filterMethod;
     public byte interlace;
+    public int rowSize;
+    public int stride;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -221,14 +223,10 @@ public static class PngParser
 
         Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
 
-        byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
-        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
-        int stride = bitsPerPixel / 8;
-
         sw.Restart();
         for (int h = 0; h < metaData.height; ++h)
         {
-            int idx = rowSize * h;
+            int idx = metaData.rowSize * h;
             byte filterType = data[idx];
 
             int startIndex = idx + 1;
@@ -239,19 +237,19 @@ public static class PngParser
                     break;
 
                 case 1:
-                    UnsafeExpand1(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand1(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 2:
-                    UnsafeExpand2(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand2(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 3:
-                    UnsafeExpand3(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand3(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 4:
-                    UnsafeExpand4(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand4(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
             }
         }
@@ -500,15 +498,24 @@ public static class PngParser
         uint w = BitConverter.ToUInt32(wdata, 0);
         uint h = BitConverter.ToUInt32(hdata, 0);
 
+        byte colorType = headerChunk.chunkData[9];
+        byte bitDepth = headerChunk.chunkData[8];
+        byte bitsPerPixel = GetBitsPerPixel(colorType, bitDepth);
+        int width = (int)w;
+        int rowSize = 1 + (bitsPerPixel * width) / 8;
+        int stride = bitsPerPixel / 8;
+
         return new PngMetaData
         {
-            width = (int)w,
+            width = width,
             height = (int)h,
-            bitDepth = headerChunk.chunkData[8],
-            colorType = headerChunk.chunkData[9],
+            bitDepth = bitDepth,
+            colorType = colorType,
             compressionMethod = headerChunk.chunkData[10],
             filterMethod = headerChunk.chunkData[11],
             interlace = headerChunk.chunkData[12],
+            rowSize = rowSize,
+            stride = stride,
         };
     }
 
