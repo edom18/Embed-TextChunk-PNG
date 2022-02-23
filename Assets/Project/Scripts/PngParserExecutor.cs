@@ -18,7 +18,7 @@ public class PngParserExecutor : MonoBehaviour
     private string FilePath => Path.Combine(Application.persistentDataPath, _filename);
     private Stopwatch _stopwatch;
     private bool _started = false;
-    
+
     private NativeArray<int> _type1Indices;
     private NativeArray<int> _otherIndices;
     private NativeArray<byte> _dataArray;
@@ -43,25 +43,38 @@ public class PngParserExecutor : MonoBehaviour
         }
     }
 
+    private void OnGUI()
+    {
+        if (GUI.Button(new Rect(Screen.width - 260, 10, 250, 150), "Job system"))
+        {
+            StartJob();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        Dispose();
+    }
+
     private async void StartJob()
     {
         string filePath = FilePath;
-        
+
         (PngMetaData metaData, byte[] data) = await Task.Run(() =>
         {
             byte[] rawData = File.ReadAllBytes(filePath);
             return PngParser.Decompress(rawData);
         });
-
+        
         _metaData = metaData;
         LineInfo info = PngParser.ExtractLines(data, _metaData);
-
-        _stopwatch.Restart();
 
         _type1Indices = new NativeArray<int>(info.filterType1, Allocator.Persistent);
         _otherIndices = new NativeArray<int>(info.otherType, Allocator.Persistent);
         _dataArray = new NativeArray<byte>(data, Allocator.Persistent);
         _pixelArray = new NativeArray<Pixel32>(_metaData.width * _metaData.height, Allocator.Persistent);
+        
+        _stopwatch.Restart();
 
         ExpandType1Job type1Job = new ExpandType1Job
         {
@@ -87,8 +100,10 @@ public class PngParserExecutor : MonoBehaviour
 
     private unsafe void ShowTexture()
     {
+        // Needs to complete even if it checked `IsCompleted`.
+        // This just avoids an error.
         _jobHandle.Complete();
-        
+
         IntPtr pointer = (IntPtr)_pixelArray.GetUnsafePtr();
 
         Texture2D texture = new Texture2D(_metaData.width, _metaData.height, TextureFormat.RGBA32, false);
@@ -97,16 +112,21 @@ public class PngParserExecutor : MonoBehaviour
         texture.Apply();
 
         _preview.texture = texture;
-        
+
+        Dispose();
+
+        _started = false;
+
+        _stopwatch.Stop();
+
+        Debug.Log($"Elapsed time: {_stopwatch.ElapsedMilliseconds.ToString()}ms");
+    }
+
+    private void Dispose()
+    {
         _type1Indices.Dispose();
         _otherIndices.Dispose();
         _dataArray.Dispose();
         _pixelArray.Dispose();
-        
-        _started = false;
-        
-        _stopwatch.Stop();
-
-        Debug.Log($"Elapsed time: {_stopwatch.ElapsedMilliseconds.ToString()}ms");
     }
 }
