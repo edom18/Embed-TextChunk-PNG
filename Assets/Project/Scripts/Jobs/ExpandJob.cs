@@ -33,6 +33,7 @@ public struct ExpandJob : IJob
             switch (filterType)
             {
                 case 0:
+                    ExpandType0(startIndex, y);
                     break;
 
                 // case 1:
@@ -51,6 +52,27 @@ public struct ExpandJob : IJob
                     ExpandType4(startIndex, y);
                     break;
             }
+        }
+    }
+    
+    private unsafe void ExpandType0(int startIndex, int y)
+    {
+        Pixel32* pixelPtr = (Pixel32*)pixels.GetUnsafePtr();
+        pixelPtr += (metaData.width * (metaData.height - 1 - y));
+
+        byte* ptr = (byte*)data.GetUnsafePtr();
+        ptr += startIndex;
+
+        Pixel32 current = default;
+
+        for (int x = 0; x < metaData.width; ++x)
+        {
+            *(uint*)&current = *(uint*)ptr;
+
+            ptr += metaData.stride;
+
+            *pixelPtr = current;
+            ++pixelPtr;
         }
     }
 
