@@ -11,11 +11,11 @@ using Debug = UnityEngine.Debug;
 
 public class PngParserExecutor : MonoBehaviour
 {
-    [SerializeField] private string _filename;
+    [SerializeField] private InputField _urlField;
     [SerializeField] private RawImage _preview;
+    [SerializeField] private Button _loadButton;
 
     private JobHandle _jobHandle;
-    private string FilePath => Path.Combine(Application.persistentDataPath, _filename);
     private Stopwatch _stopwatch;
     private bool _started = false;
 
@@ -28,6 +28,7 @@ public class PngParserExecutor : MonoBehaviour
     private void Start()
     {
         _stopwatch = new Stopwatch();
+        _loadButton.onClick.AddListener(StartJob);
     }
 
     private void Update()
@@ -37,10 +38,10 @@ public class PngParserExecutor : MonoBehaviour
             StartJob();
         }
 
-        if (_started && _jobHandle.IsCompleted)
-        {
-            ShowTexture();
-        }
+        // if (_started && _jobHandle.IsCompleted)
+        // {
+        //     ShowTexture();
+        // }
     }
 
     private void OnGUI()
@@ -58,7 +59,7 @@ public class PngParserExecutor : MonoBehaviour
 
     private async void StartJob()
     {
-        string filePath = FilePath;
+        string filePath = PngImageManager.GetSavePath(_urlField.text);
 
         (PngMetaData metaData, byte[] data) = await Task.Run(() =>
         {
@@ -96,6 +97,8 @@ public class PngParserExecutor : MonoBehaviour
         _jobHandle = job.Schedule(type1JobHandle);
 
         _started = true;
+        
+        ShowTexture();
     }
 
     private unsafe void ShowTexture()
