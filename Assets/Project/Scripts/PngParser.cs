@@ -166,11 +166,6 @@ public static class PngParser
             int idx = metaData.rowSize * h;
             byte filterType = data[idx];
 
-            if (filterType == 0)
-            {
-                Debug.Log(">>>>>>>>>>>>>>>>");
-            }
-
             if (filterType == 1)
             {
                 type1.Add(h);
