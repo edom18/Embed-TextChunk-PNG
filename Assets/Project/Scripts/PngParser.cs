@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 using Debug = UnityEngine.Debug;
 
@@ -188,6 +189,12 @@ public static class PngParser
         Chunk ihdr = GetHeaderChunk(data);
 
         PngMetaData metaData = GetMetaData(ihdr);
+
+        byte supportedColorType = 6;
+        if (metaData.colorType != supportedColorType)
+        {
+            Debug.LogError($"Parsed png file is not color type {supportedColorType.ToString()}. This sample supports only color type {supportedColorType.ToString()}. It may be parsed as wrong color. [Current color type: {metaData.colorType.ToString()}]");
+        }
 
         Debug.Log($"[{nameof(PngParser)}] A parsed png size is {metaData.width.ToString()} x {metaData.height.ToString()}");
 
