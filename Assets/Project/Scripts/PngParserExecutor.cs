@@ -85,7 +85,6 @@ public class PngParserExecutor : MonoBehaviour
 
         JobHandle type1JobHandle = type1Job.Schedule(info.filterType1.Length, 32);
         _jobHandle = job.Schedule(type1JobHandle);
-        
     }
 
     private unsafe void ShowResult()
