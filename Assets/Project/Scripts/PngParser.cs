@@ -218,7 +218,7 @@ public static class PngParser
             index += chunk.length + metaDataSize;
         }
 
-        Debug.Log($"[{nameof(PngParser)}] Total size : {totalSize.ToString()}");
+        // Debug.Log($"[{nameof(PngParser)}] Total size : {totalSize.ToString()}");
 
         // Skipping first 2 byte of the array because it's a magic byte.
         // NOTE: https://stackoverflow.com/questions/20850703/cant-inflate-with-c-sharp-using-deflatestream

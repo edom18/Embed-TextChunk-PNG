@@ -1,8 +1,6 @@
-using System;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
-using System.Threading;
 using Cysharp.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -12,50 +10,43 @@ public class PngImageManager : MonoBehaviour
 {
     [SerializeField] private InputField _urlField;
     [SerializeField] private Button _downLoadButton;
-    // [SerializeField] private Button _loadButton;
-    
+    [SerializeField] private ImagePreview _previewPrefab;
+    [SerializeField] private RectTransform _parent;
+    [SerializeField] private PngParserExecutor _executor;
+
     private Encoding _latin1 = Encoding.GetEncoding(28591);
+
+    private static string SaveDirectory => Application.persistentDataPath;
 
     private void Awake()
     {
-        _downLoadButton.onClick.AddListener(() =>
-        {
-            DownloadAsync(_urlField.text).Forget();
-        });
+        LoadAllImages();
 
-        // _loadButton.clicked += () =>
-        // {
-        //     Load(_urlField.text).Forget();
-        // };
+        _downLoadButton.onClick.AddListener(() => { DownloadAsync(_urlField.text).Forget(); });
     }
 
-    // public static async UniTask<Texture2D> Load(string url, CancellationToken token = default)
-    // {
-    //     string filePath = GetSavePath(url);
-    //     byte[] data = File.ReadAllBytes(filePath);
-    //
-    //     if (!PngParser.IsPng(data))
-    //     {
-    //         Debug.LogError($"[{nameof(PngTextChunkTest)}] Provided data is not PNG format.");
-    //         return null;
-    //     }
-    //
-    //     return await PngParser.Parse(data, token);
-    // }
+    public void LoadAllImages()
+    {
+        string[] files = Directory.GetFiles(SaveDirectory);
+
+        foreach (string file in files)
+        {
+            string path = Path.Combine(SaveDirectory, file);
+            ImagePreview preview = Instantiate(_previewPrefab, _parent);
+            preview.LoadImage(path);
+            preview.OnClicked += filePath => _executor.LoadImage(filePath);
+        }
+    }
 
     public static async UniTask<Texture2D> DownloadAsync(string url)
     {
-        string savePath = GetSavePath(url);
-        // if (File.Exists(savePath))
-        // {
-        //     return await Load(url);
-        // }
-        //
         using UnityWebRequest req = UnityWebRequestTexture.GetTexture(url);
 
         await req.SendWebRequest();
 
         Texture2D texture = DownloadHandlerTexture.GetContent(req);
+
+        string savePath = GetSavePath(url);
 
         Debug.Log($"Save a texture to [{savePath}]");
 
@@ -78,6 +69,6 @@ public class PngImageManager : MonoBehaviour
 
         string filename = builder.ToString();
 
-        return Path.Combine(Application.persistentDataPath, filename);
+        return Path.Combine(SaveDirectory, filename);
     }
 }

@@ -28,28 +28,6 @@ public class PngParserExecutor : MonoBehaviour
     private void Start()
     {
         _stopwatch = new Stopwatch();
-        _loadButton.onClick.AddListener(StartJob);
-    }
-
-    private void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.J))
-        {
-            StartJob();
-        }
-
-        // if (_started && _jobHandle.IsCompleted)
-        // {
-        //     ShowTexture();
-        // }
-    }
-
-    private void OnGUI()
-    {
-        if (GUI.Button(new Rect(Screen.width - 260, 10, 250, 150), "Job system"))
-        {
-            StartJob();
-        }
     }
 
     private void OnDestroy()
@@ -57,10 +35,22 @@ public class PngParserExecutor : MonoBehaviour
         Dispose();
     }
 
-    private async void StartJob()
+    public async void LoadImage(string filePath)
     {
-        string filePath = PngImageManager.GetSavePath(_urlField.text);
+        if (_started)
+        {
+            return;
+        }
 
+        _started = true;
+
+        await PrepareJob(filePath);
+        
+        ShowResult();
+    }
+
+    private async Task PrepareJob(string filePath)
+    {
         (PngMetaData metaData, byte[] data) = await Task.Run(() =>
         {
             byte[] rawData = File.ReadAllBytes(filePath);
@@ -95,13 +85,10 @@ public class PngParserExecutor : MonoBehaviour
 
         JobHandle type1JobHandle = type1Job.Schedule(info.filterType1.Length, 32);
         _jobHandle = job.Schedule(type1JobHandle);
-
-        _started = true;
         
-        ShowTexture();
     }
 
-    private unsafe void ShowTexture()
+    private unsafe void ShowResult()
     {
         // Needs to complete even if it checked `IsCompleted`.
         // This just avoids an error.
