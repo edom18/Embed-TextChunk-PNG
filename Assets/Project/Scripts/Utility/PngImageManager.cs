@@ -2,13 +2,14 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using Cysharp.Threading.Tasks;
+using TMPro;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
 
 public class PngImageManager : MonoBehaviour
 {
-    [SerializeField] private InputField _urlField;
+    [SerializeField] private TMP_InputField _urlField;
     [SerializeField] private Button _downLoadButton;
     [SerializeField] private ImagePreview _previewPrefab;
     [SerializeField] private RectTransform _parent;
@@ -32,13 +33,11 @@ public class PngImageManager : MonoBehaviour
         foreach (string file in files)
         {
             string path = Path.Combine(SaveDirectory, file);
-            ImagePreview preview = Instantiate(_previewPrefab, _parent);
-            preview.LoadImage(path);
-            preview.OnClicked += filePath => _executor.LoadImage(filePath);
+            CreatePreview(path);
         }
     }
 
-    public static async UniTask<Texture2D> DownloadAsync(string url)
+    public async UniTask<Texture2D> DownloadAsync(string url)
     {
         using UnityWebRequest req = UnityWebRequestTexture.GetTexture(url);
 
@@ -52,6 +51,8 @@ public class PngImageManager : MonoBehaviour
 
         byte[] data = texture.EncodeToPNG();
         File.WriteAllBytes(savePath, data);
+
+        CreatePreview(savePath);
 
         return texture;
     }
@@ -70,5 +71,12 @@ public class PngImageManager : MonoBehaviour
         string filename = builder.ToString();
 
         return Path.Combine(SaveDirectory, filename);
+    }
+
+    private void CreatePreview(string filePath)
+    {
+        ImagePreview preview = Instantiate(_previewPrefab, _parent);
+        preview.LoadImage(filePath);
+        preview.OnClicked += filePath => _executor.LoadImage(filePath);
     }
 }

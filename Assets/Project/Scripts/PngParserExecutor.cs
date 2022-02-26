@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using TMPro;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -11,9 +12,8 @@ using Debug = UnityEngine.Debug;
 
 public class PngParserExecutor : MonoBehaviour
 {
-    [SerializeField] private InputField _urlField;
     [SerializeField] private RawImage _preview;
-    [SerializeField] private Button _loadButton;
+    [SerializeField] private TMP_Text _logText;
 
     private JobHandle _jobHandle;
     private Stopwatch _stopwatch;
@@ -110,6 +110,8 @@ public class PngParserExecutor : MonoBehaviour
         _stopwatch.Stop();
 
         Debug.Log($"Elapsed time: {_stopwatch.ElapsedMilliseconds.ToString()}ms");
+        
+        _logText.text = $"{_stopwatch.ElapsedMilliseconds.ToString()} ms";
     }
 
     private void Dispose()
