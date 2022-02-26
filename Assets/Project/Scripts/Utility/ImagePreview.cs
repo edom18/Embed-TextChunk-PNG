@@ -9,6 +9,7 @@ public class ImagePreview : MonoBehaviour
     
     [SerializeField] private RawImage _preview;
     [SerializeField] private Button _button;
+    [SerializeField] private float _baseSize = 100f;
 
     private string _filePath;
 
@@ -28,5 +29,9 @@ public class ImagePreview : MonoBehaviour
         Texture2D texture = new Texture2D(0, 0);
         texture.LoadImage(data);
         _preview.texture = texture;
+
+        float ratio = texture.height / (float)texture.width;
+        float height = (ratio * _baseSize) - _baseSize;
+        _preview.rectTransform.sizeDelta = new Vector2(0, height);
     }
 }
