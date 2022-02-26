@@ -101,6 +101,11 @@ public class PngParserExecutor : MonoBehaviour
         texture.LoadRawTextureData(pointer, _metaData.width * _metaData.height * 4);
         texture.Apply();
 
+        float ratio = texture.width / (float)texture.height;
+        Vector2 size = _preview.rectTransform.sizeDelta;
+        float ratio2 = size.x / size.y;
+        size.x *= ratio / ratio2;
+        _preview.rectTransform.sizeDelta = size;
         _preview.texture = texture;
 
         Dispose();
