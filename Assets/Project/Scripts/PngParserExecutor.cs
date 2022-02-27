@@ -19,10 +19,10 @@ public class PngParserExecutor : MonoBehaviour
     private Stopwatch _stopwatch;
     private bool _started = false;
 
-    private NativeArray<int> _type1Indices;
-    private NativeArray<int> _otherIndices;
-    private NativeArray<byte> _dataArray;
-    private NativeArray<Pixel32> _pixelArray;
+    private NativeArray<int>? _type1Indices;
+    private NativeArray<int>? _otherIndices;
+    private NativeArray<byte>? _dataArray;
+    private NativeArray<Pixel32>? _pixelArray;
     private PngMetaData _metaData;
 
     private void Start()
@@ -69,17 +69,17 @@ public class PngParserExecutor : MonoBehaviour
 
         ExpandType1Job type1Job = new ExpandType1Job
         {
-            indices = _type1Indices,
-            data = _dataArray,
-            pixels = _pixelArray,
+            indices = _type1Indices.Value,
+            data = _dataArray.Value,
+            pixels = _pixelArray.Value,
             metaData = _metaData,
         };
 
         ExpandJob job = new ExpandJob
         {
-            indices = _otherIndices,
-            data = _dataArray,
-            pixels = _pixelArray,
+            indices = _otherIndices.Value,
+            data = _dataArray.Value,
+            pixels = _pixelArray.Value,
             metaData = _metaData,
         };
 
@@ -93,7 +93,13 @@ public class PngParserExecutor : MonoBehaviour
         // This just avoids an error.
         _jobHandle.Complete();
 
-        IntPtr pointer = (IntPtr)_pixelArray.GetUnsafePtr();
+        if (!_pixelArray.HasValue)
+        {
+            Debug.LogWarning($"{nameof(_pixelArray)} is already disposed or null.");
+            return;
+        }
+        
+        IntPtr pointer = (IntPtr)_pixelArray.Value.GetUnsafePtr();
 
         Texture2D texture = new Texture2D(_metaData.width, _metaData.height, TextureFormat.RGBA32, false);
 
@@ -120,9 +126,14 @@ public class PngParserExecutor : MonoBehaviour
 
     private void Dispose()
     {
-        _type1Indices.Dispose();
-        _otherIndices.Dispose();
-        _dataArray.Dispose();
-        _pixelArray.Dispose();
+        _type1Indices?.Dispose();
+        _otherIndices?.Dispose();
+        _dataArray?.Dispose();
+        _pixelArray?.Dispose();
+
+        _type1Indices = null;
+        _otherIndices = null;
+        _dataArray = null;
+        _pixelArray = null;
     }
 }
