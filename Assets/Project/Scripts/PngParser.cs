@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 using Debug = UnityEngine.Debug;
 
@@ -28,6 +29,14 @@ public struct PngMetaData
     public byte compressionMethod;
     public byte filterMethod;
     public byte interlace;
+    public int rowSize;
+    public int stride;
+}
+
+public struct LineInfo
+{
+    public int[] filterType1;
+    public int[] otherType;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -148,11 +157,44 @@ public static class PngParser
         return await Task.Run(() => ParseAsRGBA(data, context), token);
     }
 
+    public static LineInfo ExtractLines(byte[] data, PngMetaData metaData)
+    {
+        List<int> type1 = new List<int>();
+        List<int> other = new List<int>();
+
+        for (int h = 0; h < metaData.height; ++h)
+        {
+            int idx = metaData.rowSize * h;
+            byte filterType = data[idx];
+
+            if (filterType == 1)
+            {
+                type1.Add(h);
+            }
+            else
+            {
+                other.Add(h);
+            }
+        }
+
+        return new LineInfo
+        {
+            filterType1 = type1.ToArray(),
+            otherType = other.ToArray(),
+        };
+    }
+
     public static (PngMetaData metaData, byte[]) Decompress(byte[] data)
     {
         Chunk ihdr = GetHeaderChunk(data);
 
         PngMetaData metaData = GetMetaData(ihdr);
+
+        byte supportedColorType = 6;
+        if (metaData.colorType != supportedColorType)
+        {
+            Debug.LogError($"Parsed png file is not color type {supportedColorType.ToString()}. This sample supports only color type {supportedColorType.ToString()}. It may be parsed as wrong color. [Current color type: {metaData.colorType.ToString()}]");
+        }
 
         Debug.Log($"[{nameof(PngParser)}] A parsed png size is {metaData.width.ToString()} x {metaData.height.ToString()}");
 
@@ -183,7 +225,7 @@ public static class PngParser
             index += chunk.length + metaDataSize;
         }
 
-        Debug.Log($"[{nameof(PngParser)}] Total size : {totalSize.ToString()}");
+        // Debug.Log($"[{nameof(PngParser)}] Total size : {totalSize.ToString()}");
 
         // Skipping first 2 byte of the array because it's a magic byte.
         // NOTE: https://stackoverflow.com/questions/20850703/cant-inflate-with-c-sharp-using-deflatestream
@@ -221,14 +263,10 @@ public static class PngParser
 
         Pixel32[] pixels = new Pixel32[metaData.width * metaData.height];
 
-        byte bitsPerPixel = GetBitsPerPixel(metaData.colorType, metaData.bitDepth);
-        int rowSize = 1 + (bitsPerPixel * metaData.width) / 8;
-        int stride = bitsPerPixel / 8;
-
         sw.Restart();
         for (int h = 0; h < metaData.height; ++h)
         {
-            int idx = rowSize * h;
+            int idx = metaData.rowSize * h;
             byte filterType = data[idx];
 
             int startIndex = idx + 1;
@@ -239,19 +277,19 @@ public static class PngParser
                     break;
 
                 case 1:
-                    UnsafeExpand1(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand1(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 2:
-                    UnsafeExpand2(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand2(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 3:
-                    UnsafeExpand3(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand3(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
 
                 case 4:
-                    UnsafeExpand4(data, startIndex, stride, h, pixels, metaData);
+                    UnsafeExpand4(data, startIndex, metaData.stride, h, pixels, metaData);
                     break;
             }
         }
@@ -287,7 +325,7 @@ public static class PngParser
 
         while (texture == null)
         {
-            Thread.Sleep(16);
+            Thread.Sleep(1);
         }
 
         return texture;
@@ -500,15 +538,24 @@ public static class PngParser
         uint w = BitConverter.ToUInt32(wdata, 0);
         uint h = BitConverter.ToUInt32(hdata, 0);
 
+        byte colorType = headerChunk.chunkData[9];
+        byte bitDepth = headerChunk.chunkData[8];
+        byte bitsPerPixel = GetBitsPerPixel(colorType, bitDepth);
+        int width = (int)w;
+        int rowSize = 1 + (bitsPerPixel * width) / 8;
+        int stride = bitsPerPixel / 8;
+
         return new PngMetaData
         {
-            width = (int)w,
+            width = width,
             height = (int)h,
-            bitDepth = headerChunk.chunkData[8],
-            colorType = headerChunk.chunkData[9],
+            bitDepth = bitDepth,
+            colorType = colorType,
             compressionMethod = headerChunk.chunkData[10],
             filterMethod = headerChunk.chunkData[11],
             interlace = headerChunk.chunkData[12],
+            rowSize = rowSize,
+            stride = stride,
         };
     }
 

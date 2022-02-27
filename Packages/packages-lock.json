@@ -1,5 +1,21 @@
 {
   "dependencies": {
+    "com.cysharp.unitask": {
+      "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "27604496ca1b27b93d78dd2257a50158fab2bc33"
+    },
+    "com.unity.burst": {
+      "version": "1.5.6",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.mathematics": "1.2.1"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.collab-proxy": {
       "version": "1.9.0",
       "depth": 0,
@@ -34,6 +50,13 @@
     },
     "com.unity.ide.vscode": {
       "version": "1.2.3",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.mathematics": {
+      "version": "1.2.5",
       "depth": 0,
       "source": "registry",
       "dependencies": {},
