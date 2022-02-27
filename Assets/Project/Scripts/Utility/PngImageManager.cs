@@ -11,6 +11,7 @@ public class PngImageManager : MonoBehaviour
 {
     [SerializeField] private TMP_InputField _urlField;
     [SerializeField] private Button _downLoadButton;
+    [SerializeField] private Button _clearButton;
     [SerializeField] private ImagePreview _previewPrefab;
     [SerializeField] private RectTransform _parent;
     [SerializeField] private PngParserExecutor _executor;
@@ -23,7 +24,8 @@ public class PngImageManager : MonoBehaviour
     {
         LoadAllImages();
 
-        _downLoadButton.onClick.AddListener(() => { DownloadAsync(_urlField.text).Forget(); });
+        _downLoadButton.onClick.AddListener(() => DownloadAsync(_urlField.text).Forget());
+        _clearButton.onClick.AddListener(Clear);
     }
 
     public void LoadAllImages()
@@ -34,6 +36,22 @@ public class PngImageManager : MonoBehaviour
         {
             string path = Path.Combine(SaveDirectory, file);
             CreatePreview(path);
+        }
+    }
+
+    public void Clear()
+    {
+        string[] files = Directory.GetFiles(SaveDirectory);
+
+        foreach (string file in files)
+        {
+            string path = Path.Combine(SaveDirectory, file);
+            File.Delete(path);
+        }
+
+        foreach (Transform child in _parent)
+        {
+            Destroy(child.gameObject);
         }
     }
 
